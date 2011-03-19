@@ -2,7 +2,8 @@ import math
 import random
 
 from PIL import Image, ImageDraw
-from quant.clusterer.metric import euclidean2
+from camp.util import Random
+from camp.clusterer.metric import euclidean2
 
 
 class _Node(object):
@@ -17,7 +18,7 @@ class _Node(object):
         :param rnd: random number generator function"""
         self.index = index
         self.rnd = rnd
-        self.weight = [self.rnd() for _ in xrange(dim)]
+        self.weight = [self.rnd[i].uniform() for i in xrange(dim)]
 
 
 class BaseTopology(object):
@@ -32,8 +33,15 @@ class BaseTopology(object):
             ``Random.random`` if ommited)"""
         self.rows = rows
         self.cols = cols
-        self.rnd = rnd or random.Random().random
+        self.rnd = rnd or Random()
         self.nodes = [_Node(dim, i, rnd=self.rnd) for i in xrange(rows*cols)]
+        try:
+            self.initialize()
+        except NotImplementedError:
+            pass
+    
+    def __getitem__(self, key):
+        return self.nodes[key[0] * self.cols + key[1]]
 
     def neighbourhood(self, bmu, radius):
         """Generator of ``(index, distance)`` tuples, each containing ``index``
@@ -56,8 +64,12 @@ class BaseTopology(object):
         :param height: bounding box height"""
         raise NotImplementedError()
 
+    def initialize(self):
+        raise NotImplementedError()
+
 
 class RectangularTopology(BaseTopology):
+    """Implementation of rectangular topology."""
 
     def neighbourhood(self, bmu, radius):
         cols = self.cols
@@ -91,9 +103,17 @@ class RectangularTopology(BaseTopology):
             bottom = top + height - 1
             yield n, left, top, right, bottom
 
+    def _initialize(self):
+        self[0,0].weight = [1.0, 0.0, 0.0]
+        self[0,self.cols-1].weight = [0.0, 1.0, 0.0]
+        self[self.rows-1, 0].weight = [0.0, 0.0, 1.0]
+        for r in xrange(self.rows):
+            for c in xrange(self.cols):
+                self[r, c].weight = [0,0,0]#[c/float(self.cols), r/float(self.rows), c/float(self.cols)]
+
 
 class Som(object):
-    __som_random__ = random.Random().random
+    __som_random__ = None
     __som_metric__ = staticmethod(euclidean2)
     __som_topology__ = RectangularTopology
     __som_radius_modifier__ = 2.0
@@ -107,9 +127,9 @@ class Som(object):
         :param dim: dimension of vectors in training set
 
         Following optional arguments can also be given:
-        :param rnd: reference to function taking no parameters and returning
-            random number of any range (depending on sample vectors' items
-            range)
+        :param rnd: list of random number generator instances. Each instance
+            must be subclass of ``random.Random`` class. Length of list must be
+            exactly ``dim``.
         :param metric: metric function used to calculate difference between two
             vectors of same size. This function should return ``0`` if vectors
             are equal or pisitive number if not. The higher value is, the more
@@ -118,7 +138,14 @@ class Som(object):
             topology used by this SOM network"""
         cls = self.__class__
         self.rnd = kwargs.get('rnd') or cls.__som_random__
+        if not isinstance(self.rnd, list):
+            raise TypeError("rnd: expecting list, not %s" % type(self.rnd))
+        for i, r in enumerate(self.rnd):
+            if not isinstance(r, random.Random):
+                raise TypeError("rnd[%d]: expecting %s, found %s" % (i, random.Random, type(r)))
         self.metric = kwargs.get('metric') or cls.__som_metric__
+        if not callable(self.metric):
+            raise TypeError("metric: callable expected")
         self.topology = (kwargs.get('topology') or cls.__som_topology__)(
             rows, cols, dim, self.rnd)
         self.radius_modifier = kwargs.get('radius_modifier') or cls.__som_radius_modifier__
@@ -144,7 +171,7 @@ class Som(object):
         max_radius = max(self.topology.rows, self.topology.cols)/2
         for e in xrange(epochs):
             # Shuffle samples (change order)
-            random.shuffle(samples, random=self.rnd)
+            random.shuffle(samples, random=self.rnd[0].random)
             # For each sample in sample sequence
             for sample in samples:
                 # Perform best match unit (BMU) search. This step needs to compare
@@ -179,36 +206,19 @@ class Som(object):
                 val = tmp
         return bmu
 
-    def visualize(self):
-        def rgb2hsv(rgb):
-            rgb = list(rgb)
-            for i in xrange(3):
-                rgb[i] /= 255.0
-            v = max(rgb)
-            x = min(rgb)
-            if x == v:
-                h = s = 0.0
-            else:
-                if rgb[0] == x:
-                    f = rgb[1] - rgb[2]
-                    i = 3.0
-                elif rgb[1] == x:
-                    f = rgb[2] - rgb[0]
-                    i = 5.0
-                else:
-                    f = rgb[0] - rgb[1]
-                    i = 1.0
-                h = (i - f / (v - x)) * 60.0
-                h = h - math.floor(h/359.9) * 359.9 / 359.9   # h mod 359.9
-                s = (v - x) / v;
-            return h, s, v
-        nw, nh = 20, 20
-        im = Image.new('RGB', (self.topology.cols * nw, self.topology.rows * nh))
+    def visualize(self, width=20, height=20, scale=255, convert=None):
+        """Uses PIL library to create and return Image representing actual
+        state of this SOM network.
+        
+        :param width: width of single bounding box
+        :param height: height of single bounding box"""
+        im = Image.new('RGB', (self.topology.cols * width, self.topology.rows * height))
         draw = ImageDraw.Draw(im)
-        for n, left, top, right, bottom in self.topology.bounding_boxes(width=nw, height=nh):
+        for n, left, top, right, bottom in self.topology.bounding_boxes(width=width, height=height):
+            tmp = convert(n.weight) if convert else tuple(n.weight)
             color = (
-                int(n.weight[0]), 
-                int(n.weight[1]),
-                int(n.weight[2]))
+                int(tmp[0] * scale),
+                int(tmp[1] * scale),
+                int(tmp[2] * scale))
             draw.ellipse((left, top, right, bottom), fill=color)
-        im.show()
+        return im

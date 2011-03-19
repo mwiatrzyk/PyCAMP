@@ -19,14 +19,16 @@ class Cluster(object):
     :param rnd: for details see :attr:`__c_rnd__`
     :param metric: for details see :attr:`__c_metric__`
     :param samples: set of samples assigned to this cluster
-    :param centroid: centroid of this cluster"""
+    :param centroid: current centroid of this cluster
+    :param initial_centroid: centroid with which the cluster was initialized"""
     __c_metric__ = staticmethod(euclidean2)
     __c_rnd__ = Random(rmin=0, rmax=255)
 
-    def __init__(self, dim, metric=None, rnd=None):
+    def __init__(self, dim, centroid=None, metric=None, rnd=None):
         """Create new cluster.
         
         :param dim: dimension of centroid vector
+        :param centroid: use predefined centroid instead of randomizing it
         :param metric: metric used to calculate distance between centroid and
             sample
         :param rnd: list of ``random.Random`` instances or single
@@ -46,8 +48,9 @@ class Cluster(object):
         self.metric = metric or self.__class__.__c_metric__
         self._acc = [0 for i in xrange(dim)]  # Accumulator of sumarized samples
         self.samples = set()
-        self.centroid = tuple(
-            [self.rnd[i].uniform() for i in xrange(dim)])
+        self.centroid = centroid or\
+            tuple([self.rnd[i].uniform() for i in xrange(dim)])
+        self.initial_centroid = tuple(self.centroid)
 
     def distance(self, sample):
         """Calculate distance between centroid of this cluster and given sample
@@ -69,12 +72,18 @@ class Cluster(object):
         """Update cluster by calculating new centroid and clearing set of
         assigned samples and accumulator."""
         if not self.samples:
-            return  # Do nothing if cluster does not have any samples assigned
-        total = float(len(self.samples))
-        acc = self._acc
-        acc = [acc[i]/total for i in xrange(self.dim)]
+            return
+        self.update_centroid()
         self._acc = [0 for i in xrange(self.dim)]
         self.samples = set()
+
+    def update_centroid(self):
+        """Calculate new centroid by averaging sample vectors."""
+        if not self.samples:
+            return
+        total = float(len(self.samples))
+        acc = self._acc
+        acc = [int(acc[i]/total) for i in xrange(self.dim)]
         self.centroid = tuple(acc)
 
     def __repr__(self):
