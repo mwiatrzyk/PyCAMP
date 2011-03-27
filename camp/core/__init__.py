@@ -73,21 +73,26 @@ class Image(object):
 
     ### Public methods
     
-    def colors(self, convert=None):
+    def colors(self, encoder=None):
         """Return list of ``(amount, color)`` tuples each representing number
-        of occurences of ``color`` in the image."""
-        if not convert:
+        of occurences of ``color`` in the image. The result of this method can
+        be used as color historgram.
+        
+        :param encoder: function that takes color tuple as the argument and
+            returns converted color (maybe to other colorspace)"""
+        if not encoder:
             for c in self.backend.getcolors(self.width * self.height):
                 yield c
         else:
             for n, c in self.backend.getcolors(self.width * self.height):
-                yield n, convert(c)
+                yield n, encoder(c)
     
-    def convert(self, mode):
+    def convert(self, mode, matrix=None):
         """Convert this image to different mode and return converted image.
         
-        :param mode: mode string"""
-        return Image(self.backend.convert(mode))
+        :param mode: mode string
+        :param matrix: optional conversion matrix"""
+        return Image(self.backend.convert(mode, matrix))
     
     def paste(self, image, left=0, top=0):
         """Paste another image into this image. This function affects current
@@ -109,8 +114,18 @@ class Image(object):
         :param filter_: PIL filter"""
         return Image(self.backend.filter(filter_))
 
-    def posterize(self, bits):
-        return Image(ImageOps.posterize(self.backend, bits))
+    def colormask(self, colors):
+        """Create mask that masks given set of colors in the image."""
+        colors = set(colors)
+        dest = Image.create('1', self.width, self.height)
+        sp, dp = self.pixels, dest.pixels
+        for x in xrange(self.width):
+            for y in xrange(self.height):
+                if sp[x, y] in colors:
+                    dp[x, y] = 1
+                else:
+                    dp[x, y] = 0
+        return dest
 
     def save(self, filename):
         """Save current image in given file.
@@ -178,3 +193,7 @@ class ImageStat(object):
     @property
     def ncolors(self):
         return len([c for c in self.__image.colors()])
+
+    def __repr__(self):
+        return "<%s(ncolors=%s)>" %\
+            (self.__class__.__name__, self.ncolors)

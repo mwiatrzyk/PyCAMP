@@ -1,6 +1,7 @@
 import logging
 
 from camp.core import Image, ImageStat
+from camp.core.colorspace import Convert
 from camp.util import Random
 from camp.filter import BaseFilter
 from camp.convert import rgb2hsv, hsv2rgb
@@ -10,20 +11,68 @@ from camp.clusterer.kmeans import kmeans, Cluster
 log = logging.getLogger(__name__)
 
 
-class QuantizationFilter(BaseFilter):
-    
+class Quantizer(BaseFilter):
+    __q_colorspace__ = 'LAB'
+    __q_threshold1__ = 0.1
+    __q_threshold2__ = 5.0
+
+    def __init__(self, next_filter=None, colorspace=None, threshold1=None, threshold2=None):
+        super(Quantizer, self).\
+            __init__(next_filter=next_filter)
+        self.colorspace = colorspace.lower() if colorspace else\
+            self.__class__.__q_colorspace__.lower()
+        self.__c_encoder = getattr(Convert, "rgb2%s" % self.colorspace)\
+            if self.colorspace != 'rgb' else lambda x: x
+        self.__c_decoder = getattr(Convert, "%s2rgb" % self.colorspace)\
+            if self.colorspace != 'rgb' else lambda x: x
+        self.threshold1 = threshold1 or self.__class__.__q_threshold1__
+        self.threshold2 = threshold2 or self.__class__.__q_threshold2__
+
+    def __get_samples(self, image):
+        """Prepare and return list of samples for clusterer."""
+        if image.mode != 'RGB':
+            raise ValueError("image: expecting RGB image, found %s" % image.mode)
+        return [s[1] for s in image.colors(encoder=self.__c_encoder)]
+
+    def __create_result_image(self, image, clusters):
+        """Create result image by changing color of each pixel in source image
+        to one of cluster centroid colors."""
+        encoder = self.__c_encoder
+        decoder = self.__c_decoder
+        res = Image.create(image.mode, image.width, image.height)
+        dpix = res.pixels
+        spix = image.pixels
+        cache = {}
+        for y in xrange(image.height):
+            for x in xrange(image.width):
+                s = spix[x, y]
+                if s not in cache:
+                    for c in clusters:
+                        if encoder(s) in c.samples:
+                            val = decoder(c.centroid)
+                            break
+                    cache[s] = val
+                    dpix[x, y] = val
+                else:
+                    dpix[x, y] = cache[s]
+        return res
+
     def choose_clusters(self, image):
         """Heuristic used to choose cluster centers from training set.
         
         :param image: image to be quantized"""
+        t1 = self.threshold1
+        t2 = self.threshold2
         clusters = []
         npixels = float(image.npixels)
         metric = euclidean
         dim = image.nchannels
-        max_difference = metric((0, 0, 0), (255, 255, 255))
+        max_difference = metric(
+            self.__c_encoder((0, 0, 0)),
+            self.__c_encoder((255, 255, 255)))
         # Sort colors by number of occurences in the image, descending and
         # ignore rare colors
-        colors = sorted([c for c in image.colors() if c[0]/npixels*100 >= 0.1], key=lambda x: -x[0])
+        colors = sorted([c for c in image.colors(encoder=self.__c_encoder) if c[0]/npixels*100 >= t1], key=lambda x: -x[0])
         for i in xrange(len(colors)):
             if not colors[i]:
                 continue  # Go to next color - already processed
@@ -33,7 +82,7 @@ class QuantizationFilter(BaseFilter):
                 if not colors[j]:
                     continue  # Go to next color - already processed
                 diff = metric(colors[i][1], colors[j][1]) / max_difference * 100
-                if diff < 8.0:
+                if diff <= t2:
                     candidates.append(colors[j][1])
                     if j != i:
                         colors[j] = None  # Mark color as processed
@@ -46,33 +95,20 @@ class QuantizationFilter(BaseFilter):
             # Add new cluster
             clusters.append(Cluster(dim, metric=metric, centroid=tuple(centroid)))
         return clusters
-
+    
     def process(self, image):
         if not isinstance(image, Image):
             raise TypeError("image: expecting %s, found %s" % (Image, type(image)))
-        if image.mode != 'RGB':
-            raise ValueError("image: expecting RGB image, found %s" % image.mode)
-        log.debug("number of color before quantization: %d", ImageStat(image).ncolors)
-        clusters = kmeans([s[1] for s in image.colors()], self.choose_clusters(image))
-        res = Image.create(image.mode, image.width, image.height)
-        dpix = res.pixels
-        spix = image.pixels
-        cache = {}
-        for y in xrange(image.height):
-            for x in xrange(image.width):
-                s = spix[x, y]
-                if s not in cache:
-                    for c in clusters:
-                        if s in c.samples:
-                            val = c.centroid
-                            break
-                    cache[s] = val
-                    dpix[x, y] = val
-                else:
-                    dpix[x, y] = cache[s]
-        log.debug("number of colors after quantization: %d", ImageStat(res).ncolors)
-        return res
-
+        # Get samples from the source image
+        samples = self.__get_samples(image)
+        log.debug("number of color before quantization: %d", len(samples))
+        # Choose initial clusters for the K-Means clusterer
+        initial_clusters = self.choose_clusters(image)
+        log.debug("number of clusters found: %d", len(initial_clusters))
+        # Perform clustering and return clusters
+        clusters = kmeans(samples, initial_clusters)
+        # Create output image
+        return self.__create_result_image(image, clusters)
 
 class QuadTreeNode(object):
 

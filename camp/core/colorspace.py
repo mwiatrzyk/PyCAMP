@@ -129,9 +129,9 @@ class Convert(object):
         else:
             b = 12.92 * b
 
-        r = round(r * 255.0)
-        g = round(g * 255.0)
-        b = round(b * 255.0)
+        r = int(round(r * 255.0))
+        g = int(round(g * 255.0))
+        b = int(round(b * 255.0))
 
         return r, g, b
 
