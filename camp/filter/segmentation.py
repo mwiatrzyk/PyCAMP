@@ -6,10 +6,9 @@ from camp.filter import BaseFilter
 log = logging.getLogger(__name__)
 
 
-class ExtractedObject(object):
-    """Container that holds single extracted from image disjoined object of
-    given color. Objects of this class are metioned to be read-only once
-    created."""
+class Segment(object):
+    """Container that holds single extracted segment from image. Objects of
+    this class are metioned to be read-only once created."""
     
     def __init__(self, area, edges, color):
         """Create new object.
@@ -103,9 +102,8 @@ class ExtractedObject(object):
             (self.__class__.__name__, self.color, len(self.area), len(self.edges), self.bounds)
 
 
-class ObjectExtractor(BaseFilter):
-    """Extracts object (disjoined single color areas) from image, possibly
-    quantized first."""
+class Segmentizer(BaseFilter):
+    """Class used to perform segmentation of given image."""
 
     def process(self, image):
         # Neighbourhood generator (coordinates of pixels surrounding given
@@ -166,7 +164,7 @@ class ObjectExtractor(BaseFilter):
                                 stack.append(n)
                                 tmp.add(n)
                     edges.append(tmp)
-                objects.add(ExtractedObject(area, tuple(edges), color))
+                objects.add(Segment(area, tuple(edges), color))
             pixels[color] = objects
-            log.debug("objects extracted for color %s: %d", color, len(objects))
+            log.debug("number of segments extracted for color %s: %d", color, len(objects))
         return image, pixels
