@@ -21,12 +21,12 @@ def right(a, b):
 
 class ObjectRecognitor(BaseFilter):
     
-    def __find_background(self, image, objects):
-        """Return set of *background* objects. An object is said to be the
+    def __find_background(self, image, segments):
+        """Return set of *background* segments. An object is said to be the
         *background* object if it bounds (at least one) are simultaneously
         image bounds."""
         result = set()
-        for color, objs in objects.iteritems():
+        for color, objs in segments.iteritems():
             left = min(objs, key=lambda x: x.bounds[0])
             if left.bounds[0] == 0:
                 result.add(left)
@@ -42,13 +42,15 @@ class ObjectRecognitor(BaseFilter):
         return result
 
 
-    def process(self, data):
-        image, objects = data
-        background = self.__find_background(*data)
+    def process(self, image, storage=None):
+        segments = storage.get('Segmentizer', {}).get('segments')
+        if not segments:
+            raise ValueError("no segments found: did you call Segmentizer filter first?")
+        background = self.__find_background(image, segments)
         maxc = max([c for c in image.colors()], key=lambda x: x[0])
         max_distance = distance((0, 0), (image.width-1, image.height-1)) #math.sqrt(image.width**2 + image.height**2)
         '''color = (0, 0, 0)
-        tmp = set(objects[color])
+        tmp = set(segments[color])
         starting = min(tmp, key=lambda x: x.bounds[0]*x.bounds[1])
         tmp.remove(starting)
         i = 0
@@ -63,16 +65,16 @@ class ObjectRecognitor(BaseFilter):
                 break
         #starting.display(image)
         #next_.display(image)
-        for i, a in enumerate(objects[color]):
+        for i, a in enumerate(segments[color]):
             continue
-            b = min(objects[color], key=lambda x: distance(x.barycenter, a.barycenter) if x is not a else max_distance)
+            b = min(segments[color], key=lambda x: distance(x.barycenter, a.barycenter) if x is not a else max_distance)
             if i < 1:
                 continue
             a.display(image)
             b.display(image)
             return image'''
-        for color in objects:
-            print color, Convert.rgb2hsv(color), sum([len(o.area) for o in objects[color]]) / float(image.width*image.height) * 100
+        for color in segments:
+            print color, Convert.rgb2hsv(color), sum([len(o.area) for o in segments[color]]) / float(image.width*image.height) * 100
         image = Image.create(image.mode, image.width, image.height)
         for o in background:
             o.display(image)

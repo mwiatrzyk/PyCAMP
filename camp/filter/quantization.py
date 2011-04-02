@@ -109,7 +109,7 @@ class Quantizer(BaseFilter):
             clusters.append(Cluster(dim, metric=metric, centroid=tuple(centroid)))
         return clusters
     
-    def process(self, image):
+    def process(self, image, storage=None):
         if not isinstance(image, Image):
             raise TypeError("image: expecting %s, found %s" % (Image, type(image)))
         if image.mode.upper() != 'RGB':

@@ -105,7 +105,7 @@ class Segment(object):
 class Segmentizer(BaseFilter):
     """Class used to perform segmentation of given image."""
 
-    def process(self, image):
+    def process(self, image, storage=None):
         # Neighbourhood generator (coordinates of pixels surrounding given
         # ``(x,y)`` pixel with itself)
         def neighbourhood(x, y):
@@ -167,4 +167,5 @@ class Segmentizer(BaseFilter):
                 objects.add(Segment(area, tuple(edges), color))
             pixels[color] = objects
             log.debug("number of segments extracted for color %s: %d", color, len(objects))
-        return image, pixels
+        storage[self.__class__.__name__] = {'segments': pixels}
+        return image
