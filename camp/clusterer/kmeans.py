@@ -73,18 +73,24 @@ class Cluster(object):
         assigned samples and accumulator."""
         if not self.samples:
             return
-        self.update_centroid()
-        self._acc = [0 for i in xrange(self.dim)]
-        self.samples = set()
-
-    def update_centroid(self):
-        """Calculate new centroid by averaging sample vectors."""
-        if not self.samples:
-            return
         total = float(len(self.samples))
         acc = self._acc
-        acc = [int(acc[i]/total) for i in xrange(self.dim)]
-        self.centroid = tuple(acc)
+        acc = tuple([acc[i]/total for i in xrange(self.dim)])
+        self._acc = [0 for i in xrange(self.dim)]
+        if self.centroid == acc:
+            return False
+        self.centroid = acc
+        self.samples = set()
+        return True
+
+    #def update_centroid(self):
+    #    """Calculate new centroid by averaging sample vectors."""
+    #    if not self.samples:
+    #        return
+    #    total = float(len(self.samples))
+    #    acc = self._acc
+    #    acc = [int(acc[i]/total) for i in xrange(self.dim)]
+    #    self.centroid = tuple(acc)
 
     def __repr__(self):
         """Return string representation of cluster."""
@@ -106,13 +112,19 @@ def kmeans(samples, clusters, max_epochs=10):
     for i, c in enumerate(clusters[1:]):
         if c.dim != dim:
             raise ValueError("clusters[%d]: dimensions differ: %d != %d" % (i+1, c.dim, dim))
+    clusters = set(clusters)
     for epoch in xrange(max_epochs):
         # Assign each sample to the nearest cluster
         for sample in samples:
             min(clusters, key=lambda x: x.distance(sample)).add(sample)
-        # Termination check
+        # Check if maximal number of epochs has been reached
         if epoch == max_epochs - 1:
             return clusters
-        # Reorganize cluster centroids by averaging assigned samples
+        # Reorganize cluster centroids by averaging assigned samples. Return if
+        # all clusters were not changed
+        i = 0
         for c in clusters:
-            c.update()
+            if not c.update():  # If cluster was not updated
+                i += 1
+        if i == len(clusters):
+            return clusters
