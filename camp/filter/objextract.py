@@ -11,24 +11,29 @@ class ExtractedObject(object):
     given color. Objects of this class are metioned to be read-only once
     created."""
     
-    def __init__(self, area, color):
+    def __init__(self, area, edges, color):
         """Create new object.
         
         :param area: set of pixel ``(x,y)`` tuple coordinates
         :param color: color of this object used in image"""
         self.__area = area
+        self.__edges = edges
         self.__color = color
     
+    @property
+    def color(self):
+        return self.__color
+
     @property
     def area(self):
         """Set of pixel coordinates composing this object."""
         return self.__area
 
     @property
-    def edge(self):
-        """Set of border pixel coordinates, i.e. area pixels that are not
-        entirely surrounded by another area pixels."""
-        print 1
+    def edges(self):
+        """Set of pixel coordinates that are area pixels adjacent to area
+        pixels of different object."""
+        return self.__edges
 
     @property
     def bounds(self):
@@ -45,6 +50,27 @@ class ExtractedObject(object):
             return self.__bounds
 
     @property
+    def width(self):
+        l, t, r, b = self.bounds
+        return r - l
+
+    @property
+    def height(self):
+        l, t, r, b = self.bounds
+        return b - t
+    
+    @property
+    def barycenter(self):
+        try:
+            return self.__barycenter
+        except AttributeError:
+            x = sum([a[0] for a in self.area])
+            y = sum([a[1] for a in self.area])
+            l = float(len(self.area))
+            self.__barycenter = x / l, y / l
+            return self.__barycenter
+
+    @property
     def coverage(self):
         """Return value representing coverage of bounding rect pixels by
         object's pixels. Returned value ranges from 0 (no object pixels) up to
@@ -54,32 +80,37 @@ class ExtractedObject(object):
         total = float((r - l + 1) * (b - t + 1))
         return len(self.area) / total
     
-    def display(self, image, color):
+    def display(self, image, area_color=None, edge_color=None):
+        """Display this object on given image.
+        
+        :param image: reference to image on which object will be displayed
+        :param area_color: color of area pixels of this object
+        :param edge_color: color of edge_pixels of this object"""
+        if not area_color:
+            area_color = (0, 0, 255)
+        if not edge_color:
+            edge_color = (0, 255, 0)
         p = image.pixels
         for x, y in self.area:
-            p[x, y] = color
+            p[x, y] = area_color
+        for edge in self.edges:
+            for x, y in edge:
+                p[x, y] = edge_color
 
     def __repr__(self):
-        return "<%s(npixels=%d, bounds=%s)>" %\
-            (self.__class__.__name__, len(self.area), self.bounds)
+        """Return text representation of this object."""
+        return "<%s(color=%s, npixels=%d, nedges=%d, bounds=%s)>" %\
+            (self.__class__.__name__, self.color, len(self.area), len(self.edges), self.bounds)
 
 
 class ObjectExtractor(BaseFilter):
     """Extracts object (disjoined single color areas) from image, possibly
     quantized first."""
-    
-    def __reduce_noise(self, image, pixels):
-        colors = sorted([c for c in image.colors()], key=lambda x: x[0])
-        npixels = float(image.width * image.height)
-        for o in pixels[colors[0][1]]:
-            pass
-        return image, pixels
 
     def process(self, image):
         # Neighbourhood generator (coordinates of pixels surrounding given
         # ``(x,y)`` pixel with itself)
         def neighbourhood(x, y):
-            yield x, y
             yield x-1, y    # W
             yield x-1, y-1  # NW
             yield x, y-1    # N
@@ -98,13 +129,13 @@ class ObjectExtractor(BaseFilter):
         # Walk through each set of pixel coords and split set of coordinates
         # into disjoined sets
         for color, coords in pixels.iteritems():
-            objects = []  # Storage for disjoined set of pixel coords
+            objects = set()  # Storage for disjoined set of pixel coords
             # While there are pixels to process
             while coords:
-                area = set()  # Storage for current set of area pixel coords
-                #edge = set()  # Storage for current set of edge pixel coords (edge < area)
-                stack = [coords.pop()]
-                coords.add(stack[0])  # To avoid KeyError while removing from set
+                coord = coords.pop()
+                area = set([coord])  # Storage for current set of area pixel coords
+                edge = set()  # Storage for current set of edge pixel coords (edge < area)
+                stack = [coord]  # Recurency stack
                 # Pixels are added to stack only if belong to neighbourhood of
                 # current pixel
                 while stack:
@@ -114,9 +145,28 @@ class ObjectExtractor(BaseFilter):
                             coords.remove(n)
                             stack.append(n)
                             area.add(n)
-                        #else:
-                        #    edge.add(p)
-                objects.append(ExtractedObject(area, color))
+                # Extract edge pixels (i.e. area pixels that are adjacent to
+                # area pixels of different colors or image edges)
+                for a in area:
+                    for n in neighbourhood(a[0], a[1]):
+                        if n not in area:
+                            edge.add(a)
+                            break
+                # Split set of edge pixels into list of disjoined edge pixels sets
+                edges = []
+                while edge:
+                    coord = edge.pop()
+                    tmp = set([coord])
+                    stack = [coord]
+                    while stack:
+                        p = stack.pop()
+                        for n in neighbourhood(p[0], p[1]):
+                            if n in edge:
+                                edge.remove(n)
+                                stack.append(n)
+                                tmp.add(n)
+                    edges.append(tmp)
+                objects.add(ExtractedObject(area, tuple(edges), color))
             pixels[color] = objects
             log.debug("objects extracted for color %s: %d", color, len(objects))
-        return self.__reduce_noise(image, pixels)
+        return image, pixels

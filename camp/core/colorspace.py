@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import math
 
 
 class Convert(object):
@@ -141,3 +142,76 @@ class Convert(object):
         
         :param lab: Lab colorspace tuple"""
         return cls.xyz2rgb(cls.lab2xyz(lab))
+
+    @classmethod
+    def rgb2hsv(cls, rgb):
+        """Convert from ``RGB`` colorspace into ``HSV`` colorspace. Each
+        channel of source ``RGB`` vector is in range 0..255. Ranges of
+        resulting ``HSV`` vector channels are following:
+        * 0..359 for H
+        * 0..100 for S
+        * 0..100 for V
+        
+        :param rgb: RGB colorspace tuple"""
+        rgb = rgb[0]/255.0, rgb[1]/255.0, rgb[2]/255.0
+        v = max(rgb)
+        x = min(rgb)
+        if x == v:
+            h = s = 0.0
+        else:
+            if rgb[0] == x:
+                f = rgb[1] - rgb[2]
+                i = 3.0
+            elif rgb[1] == x:
+                f = rgb[2] - rgb[0]
+                i = 5.0
+            else:
+                f = rgb[0] - rgb[1]
+                i = 1.0
+            h = (i - f / (v - x)) * 60.0
+            h = h - math.floor(h/359.9) * 359.9 / 359.9   # h mod 359.9
+            s = (v - x) / v
+        return int(h), int(s*100.0), int(v*100.0)
+        
+    @classmethod
+    def hsv2rgb(cls, hsv):
+        """Convert from ``HSV`` colorspace into ``RGB`` colorspace. Both
+        ``RGB`` and ``HSV`` channels are in ranges specified in
+        :meth:`rgb2hsv`.
+        
+        :param hsv: HSV color tuple"""
+        h, s, v = hsv[0]/359.9, hsv[1]/100.0, hsv[2]/100.0
+        if h < 0.0:
+            h = 0.0
+        elif h > 359.9:
+            h = 359.9
+        if s < 0.0:
+            s = 0.0
+        elif s > 100.0:
+            s = 100.0
+        if v < 0.0:
+            v = 0.0
+        elif v > 100.0:
+            v = 100.0
+        if v == 0.0:
+            return 0.0, 0.0, 0.0
+        else:
+            h = h * 5.998
+            i = math.floor(h)
+            f = h - i
+            p = v * (1.0 - s)
+            q = v * (1.0 - (s * f))
+            t = v * (1.0 - (s * (1.0 - f)))
+            if i == 0.0:
+                r, g, b = v, t, p
+            elif i == 1.0:
+                r, g, b = q, v, p
+            elif i == 2.0:
+                r, g, b = p, v, t
+            elif i == 3.0:
+                r, g, b = p, q, v
+            elif i == 4.0:
+                r, g, b = t, p, v
+            else:  # i == 5.0:
+                r, g, b = v, p, q
+            return int(r*255.0), int(g*255.0), int(b*255.0)

@@ -13,25 +13,38 @@ log = logging.getLogger(__name__)
 
 class Quantizer(BaseFilter):
     __q_colorspace__ = 'LAB'
+    __q_metric__ = staticmethod(euclidean)
     __q_threshold1__ = 0.1
     __q_threshold2__ = 5.0
 
-    def __init__(self, next_filter=None, colorspace=None, threshold1=None, threshold2=None):
+    def __init__(self, next_filter=None, colorspace=None, metric=None, threshold1=None, threshold2=None):
+        """Create new instance of Quantizer.
+        
+        :param next_filter: filter to be executed after successfull quantization
+        :param colorspace: colorspace in which color comparison will be
+            performed. There must be correct converter function defined in
+            :class:`Convert`
+        :param threshold1: used to ignore colors of pixels composing less than
+            given percentage of entire image
+        :param threshold2: maximal percentage difference between white color
+            and black color. If difference of two colors is less than given
+            threshold, colors are said to be equal"""
         super(Quantizer, self).\
             __init__(next_filter=next_filter)
         self.colorspace = colorspace.lower() if colorspace else\
             self.__class__.__q_colorspace__.lower()
+        self.metric = metric or self.__class__.__q_metric__
         self.__c_encoder = getattr(Convert, "rgb2%s" % self.colorspace)\
             if self.colorspace != 'rgb' else lambda x: x
         self.__c_decoder = getattr(Convert, "%s2rgb" % self.colorspace)\
             if self.colorspace != 'rgb' else lambda x: x
         self.threshold1 = threshold1 or self.__class__.__q_threshold1__
         self.threshold2 = threshold2 or self.__class__.__q_threshold2__
+        log.debug("quantizer initialized: colorspace=%s, t1=%s, t2=%s",
+            self.colorspace, self.threshold1, self.threshold2)
 
     def __get_samples(self, image):
         """Prepare and return list of samples for clusterer."""
-        if image.mode != 'RGB':
-            raise ValueError("image: expecting RGB image, found %s" % image.mode)
         return [s[1] for s in image.colors(encoder=self.__c_encoder)]
 
     def __create_result_image(self, image, clusters):
@@ -65,7 +78,7 @@ class Quantizer(BaseFilter):
         t2 = self.threshold2
         clusters = []
         npixels = float(image.npixels)
-        metric = euclidean
+        metric = self.metric
         dim = image.nchannels
         max_difference = metric(
             self.__c_encoder((0, 0, 0)),
@@ -99,14 +112,17 @@ class Quantizer(BaseFilter):
     def process(self, image):
         if not isinstance(image, Image):
             raise TypeError("image: expecting %s, found %s" % (Image, type(image)))
+        if image.mode.upper() != 'RGB':
+            raise ValueError("image: expecting RGB image, found %s" % image.mode.upper())
         # Get samples from the source image
         samples = self.__get_samples(image)
-        log.debug("number of color before quantization: %d", len(samples))
+        log.debug("number of colors before quantization: %d", len(samples))
         # Choose initial clusters for the K-Means clusterer
         initial_clusters = self.choose_clusters(image)
         log.debug("number of clusters found: %d", len(initial_clusters))
         # Perform clustering and return clusters
         clusters = kmeans(samples, initial_clusters)
+        log.debug("resulting clusters: %s", clusters)
         # Create output image
         return self.__create_result_image(image, clusters)
 
