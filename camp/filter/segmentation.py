@@ -22,7 +22,7 @@ class Segment(object):
     @property
     def color(self):
         return self.__color
-
+    
     @property
     def area(self):
         """Set of pixel coordinates composing this object."""
@@ -126,8 +126,8 @@ class Segmentizer(BaseFilter):
         log.debug("number of colors: %d", len(pixels))
         # Walk through each set of pixel coords and split set of coordinates
         # into disjoined sets
+        segments = set()  # Storage for disjoined set of pixel coords
         for color, coords in pixels.iteritems():
-            objects = set()  # Storage for disjoined set of pixel coords
             # While there are pixels to process
             while coords:
                 coord = coords.pop()
@@ -148,8 +148,7 @@ class Segmentizer(BaseFilter):
                 for a in area:
                     for n in neighbourhood(a[0], a[1]):
                         if n not in area:
-                            edge.add(a)
-                            break
+                            edge.add(n)
                 # Split set of edge pixels into list of disjoined edge pixels sets
                 edges = []
                 while edge:
@@ -164,8 +163,7 @@ class Segmentizer(BaseFilter):
                                 stack.append(n)
                                 tmp.add(n)
                     edges.append(tmp)
-                objects.add(Segment(area, tuple(edges), color))
-            pixels[color] = objects
-            log.debug("number of segments extracted for color %s: %d", color, len(objects))
-        storage[self.__class__.__name__] = {'segments': pixels}
+                segments.add(Segment(area, tuple(edges), color))
+        log.debug("total number of segments extracted: %d", len(segments))
+        storage[self.__class__.__name__] = {'segments': segments}
         return image
