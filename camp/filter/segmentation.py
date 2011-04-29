@@ -1,139 +1,77 @@
+import weakref
 import logging
 
 from camp.core import Image
+from camp.core.containers import Segment, SegmentSet
 from camp.filter import BaseFilter
 
 log = logging.getLogger(__name__)
 
 
-class Segment(object):
-    """Container that holds single extracted segment from image. Objects of
-    this class are metioned to be read-only once created."""
-    
-    def __init__(self, area, edges, color):
-        """Create new object.
-        
-        :param area: set of pixel ``(x,y)`` tuple coordinates
-        :param color: color of this object used in image"""
-        self.__area = area
-        self.__edges = edges
-        self.__color = color
-    
-    @property
-    def color(self):
-        return self.__color
-    
-    @property
-    def area(self):
-        """Set of pixel coordinates composing this object."""
-        return self.__area
+def neighbourhood(x, y):
+    yield x-1, y    # W
+    yield x-1, y-1  # NW
+    yield x, y-1    # N
+    yield x+1, y-1  # NE
+    yield x+1, y    # E
+    yield x+1, y+1  # SE
+    yield x, y+1    # S
+    yield x-1, y+1  # SW
 
-    @property
-    def edges(self):
-        """Set of pixel coordinates that are area pixels adjacent to area
-        pixels of different object."""
-        return self.__edges
 
-    @property
-    def bounds(self):
-        """Return bounds of this extracted object as a tuple of ``(x_min,
-        y_min, x_max, y_max)``."""
-        try:
-            return self.__bounds
-        except AttributeError:
-            xmin = min(self.area, key=lambda x: x[0])
-            xmax = max(self.area, key=lambda x: x[0])
-            ymin = min(self.area, key=lambda x: x[1])
-            ymax = max(self.area, key=lambda x: x[1])
-            self.__bounds = xmin[0], ymin[1], xmax[0], ymax[1]
-            return self.__bounds
-
-    @property
-    def width(self):
-        l, t, r, b = self.bounds
-        return r - l
-
-    @property
-    def height(self):
-        l, t, r, b = self.bounds
-        return b - t
-    
-    @property
-    def barycenter(self):
-        try:
-            return self.__barycenter
-        except AttributeError:
-            x = sum([a[0] for a in self.area])
-            y = sum([a[1] for a in self.area])
-            l = float(len(self.area))
-            self.__barycenter = x / l, y / l
-            return self.__barycenter
-
-    @property
-    def coverage(self):
-        """Return value representing coverage of bounding rect pixels by
-        object's pixels. Returned value ranges from 0 (no object pixels) up to
-        1 (all bounding rect's pixels are object's pixels; this means, that
-        object is a rectangle)."""
-        l, t, r, b = self.bounds
-        total = float((r - l + 1) * (b - t + 1))
-        return len(self.area) / total
-    
-    def display(self, image, area_color=None, edge_color=None):
-        """Display this object on given image.
-        
-        :param image: reference to image on which object will be displayed
-        :param area_color: color of area pixels of this object
-        :param edge_color: color of edge_pixels of this object"""
-        if not area_color:
-            area_color = (0, 0, 255)
-        if not edge_color:
-            edge_color = (0, 255, 0)
-        p = image.pixels
-        for x, y in self.area:
-            p[x, y] = area_color
-        for edge in self.edges:
-            for x, y in edge:
-                p[x, y] = edge_color
-
-    def __repr__(self):
-        """Return text representation of this object."""
-        return "<%s(color=%s, npixels=%d, nedges=%d, bounds=%s)>" %\
-            (self.__class__.__name__, self.color, len(self.area), len(self.edges), self.bounds)
+def neighbourhood_with_bound_check(x, y, w, h):
+    if x > 0:
+        yield x-1, y    # W
+        if y > 0:
+            yield x-1, y-1  # NW
+        if y < h-1:
+            yield x-1, y+1  # SW
+    if x < w-1:
+        if y > 0:
+            yield x+1, y-1  # NE
+        yield x+1, y    # E
+        if y < h-1:
+            yield x+1, y+1  # SE
+    if y < h-1:
+        yield x, y+1    # S
+    if y > 0:
+        yield x, y-1    # N
 
 
 class Segmentizer(BaseFilter):
-    """Class used to perform segmentation of given image."""
-
-    def process(self, image, storage=None):
-        # Neighbourhood generator (coordinates of pixels surrounding given
-        # ``(x,y)`` pixel with itself)
-        def neighbourhood(x, y):
-            yield x-1, y    # W
-            yield x-1, y-1  # NW
-            yield x, y-1    # N
-            yield x+1, y-1  # NE
-            yield x+1, y    # E
-            yield x+1, y+1  # SE
-            yield x, y+1    # S
-            yield x-1, y+1  # SW
-        # Create set of pixel coordinates for each of distinct colors
+    """Class used to perform segmentation of given image. The output of this
+    class is following:
+        * list of all segments
+        * matrix NxN of connections between segments"""
+    __f_enable_caching__ = True
+    
+    def __create_coordinate_sets(self, image):
+        """Create map of ``color->pixel_coord_set`` for all pixels composing
+        given image. Results of this method are later used by
+        :meth:`__get_segments`."""
+        log.debug('creating set of pixel coordinates for each color')
         pixels = {}
         ptr = image.pixels
         for x in xrange(image.width):
             for y in xrange(image.height):
                 pixels.setdefault(ptr[x, y], set()).add((x, y))
-        log.debug("number of colors: %d", len(pixels))
-        # Walk through each set of pixel coords and split set of coordinates
-        # into disjoined sets
-        segments = set()  # Storage for disjoined set of pixel coords
+        return pixels
+
+    def __get_segments(self, pixels):
+        """Create list of all disjoint segments by splitting sets of pixel
+        coordinates for each color into disjoint subsets. Results of this
+        method are later used to create connection matrix."""
+        # Neighbourhood generator (coordinates of pixels surrounding given
+        # ``(x,y)`` pixel with itself)
+        log.debug('extracting segments from image')
+        segments = []
         for color, coords in pixels.iteritems():
-            # While there are pixels to process
             while coords:
                 coord = coords.pop()
-                area = set([coord])  # Storage for current set of area pixel coords
-                edge = set()  # Storage for current set of edge pixel coords (edge < area)
-                stack = [coord]  # Recurency stack
+                stack = [coord]
+                # Create new segment
+                segment = Segment(index=len(segments), color=color)
+                segment.area.add(coord)
                 # Pixels are added to stack only if belong to neighbourhood of
                 # current pixel
                 while stack:
@@ -142,28 +80,61 @@ class Segmentizer(BaseFilter):
                         if n in coords:  # If not yet processed
                             coords.remove(n)
                             stack.append(n)
-                            area.add(n)
-                # Extract edge pixels (i.e. area pixels that are adjacent to
-                # area pixels of different colors or image edges)
-                for a in area:
-                    for n in neighbourhood(a[0], a[1]):
-                        if n not in area:
-                            edge.add(n)
-                # Split set of edge pixels into list of disjoined edge pixels sets
-                edges = []
-                while edge:
-                    coord = edge.pop()
-                    tmp = set([coord])
-                    stack = [coord]
-                    while stack:
-                        p = stack.pop()
-                        for n in neighbourhood(p[0], p[1]):
-                            if n in edge:
-                                edge.remove(n)
-                                stack.append(n)
-                                tmp.add(n)
-                    edges.append(tmp)
-                segments.add(Segment(area, tuple(edges), color))
+                            segment.area.add(n)
+                # Once stack is empty, new segment is extracted and should be
+                # added to the list of extracted segments
+                segments.append(segment)
+        return segments
+
+    def __label_pixels(self, segments, image):
+        """Assign each pixel to its segment and return assignment map having
+        same size as the image (map[x,y] stores index of segment from
+        ``segments`` list to which current pixel belongs)."""
+        log.debug('labelling pixels in the image')
+        pixel_map = [[None for _ in xrange(image.height)] for _ in xrange(image.width)]
+        for s in segments:
+            for x, y in s.area:
+                pixel_map[x][y] = s.index
+        return pixel_map
+
+    def __get_neighbours(self, segments, pixel_map, image):
+        """Fill ``neighbours`` property of each segment with weakrefs to
+        neighbouring segments. This method will create undirected graph of
+        segments."""
+        log.debug('creating list of neighbouring segments for each segment')
+        #nseg = len(segments)
+        sorted_segments = sorted(segments, key=lambda x: x.index)
+        #print sorted_segments[0].index, sorted_segments[1].index
+        #matrix = [[None for _ in xrange(nseg)] for _ in xrange(nseg)]
+        for x in xrange(image.width):
+            for y in xrange(image.height):
+                label = pixel_map[x][y]
+                for nx, ny in neighbourhood_with_bound_check(x, y, image.width, image.height):
+                    this_label = pixel_map[nx][ny]
+                    if label != this_label:
+                        sorted_segments[label].neighbours.add(this_label)
+                        sorted_segments[this_label].neighbours.add(label)
+                        #matrix[label][this_label] = matrix[this_label][label] = True
+        #for i in xrange(nseg):
+        #    for j in xrange(nseg):
+        #        if matrix[i][j]:
+        #            #segments[i].neighbours.append(weakref.ref(segments[j]))
+        #            segments[i].neighbours.add(segments[j])
+        #            segments[j].neighbours.add(segments[i])
+        return segments
+
+    def process(self, image, storage=None):
+        log.info('performing segmentation step')
+        # Create set of pixel coordinates for each color giving map of (color,
+        # set_of_coords)
+        pixels = self.__create_coordinate_sets(image)
+        # Create list of segments by splitting all sets of pixel coordinates
+        # into disjoint subsets
+        segments = self.__get_segments(pixels)
+        # Label pixels in the image
+        pixel_map = self.__label_pixels(segments, image)
+        # Create connection matrix using previously labelled pixel map
+        segments = self.__get_neighbours(segments, pixel_map, image)
         log.debug("total number of segments extracted: %d", len(segments))
-        storage[self.__class__.__name__] = {'segments': segments}
+        storage[self.__class__.__name__] = {'segments': SegmentSet(segments)}
         return image
