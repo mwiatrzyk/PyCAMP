@@ -2,6 +2,8 @@ import os
 import math
 import logging
 
+import camp.plugins.ocr as ocr_plugins
+
 from subprocess import Popen, PIPE
 
 from camp.filter import BaseFilter
@@ -24,25 +26,6 @@ def right(a, b):
     return dist + abs(b[1]-a[1])
 
 
-class OCR(object):
-    __command__ = 'tesseract %(infile)s %(outfile)s'
-
-    def __init__(self, working_dir):
-        self.working_dir = working_dir
-        if not os.path.isdir(self.working_dir):
-            os.makedirs(self.working_dir)
-
-    def run(self, segment, rotate=None):
-        infile = os.path.join(self.working_dir, '%d_%d_%d_%d.tif' % segment.bounds)
-        outfile = os.path.join(self.working_dir, '%d_%d_%d_%d' % segment.bounds)
-        segment.toimage(border=2, rotate=rotate).save(infile)
-        cmd = self.__class__.__command__ % {'infile': infile, 'outfile': outfile}
-        p = Popen(cmd, shell=True, bufsize=1024, stdout=PIPE, stderr=PIPE, close_fds=True)
-        if p.wait() != 0:
-            return None  # TODO: raise exc
-        return open("%s.txt" % outfile).read().strip()
-
-
 class ObjectRecognitor(BaseFilter):
     __f_enable_caching__ = False
 
@@ -57,7 +40,9 @@ class ObjectRecognitor(BaseFilter):
                 x.bottom == image.height-1
         return set(filter(is_background, segments))
 
-    def __find_text(self, image, segments_, max_width=40, max_height=30, letter_delta=6, word_delta=12, min_word_area=20, max_vertical_height=30):
+    def __find_text(self, image, segments_, ocr='tesseract', max_width=40,
+                    max_height=30, letter_delta=6, word_delta=12,
+                    min_word_area=20, max_vertical_height=30):
         """Find and return group of segments composing textual information.
         
         :param max_width: maximal width of potential letter
@@ -187,16 +172,12 @@ class ObjectRecognitor(BaseFilter):
         
         # Perform OCR recognition using external OCR process
         result = set()
-        ocr = OCR('./data/ocr')
+        OCR = ocr_plugins.load_plugin(ocr)
+        ocr = OCR(os.path.join('data', 'ocr', ocr))
         for c in candidates:
-            text = ocr.run(c)
-            if '\n' in text or not text:
-                text = ocr.run(c, rotate=270)
-                if text:
-                    c.genre = Text(text=text)
-            else:
+            text = ocr.perform(c, angles=[0, 270])
+            if text:
                 c.genre = Text(text=text)
-            if isinstance(c.genre, Text):
                 result.add(c)
 
         return result
@@ -210,6 +191,7 @@ class ObjectRecognitor(BaseFilter):
         log.info('performing text regions search and OCR recognition process')
         text_regions = self.__find_text(
             image, segments,
+            ocr='tesseract',
             max_width=40, max_height=30,
             letter_delta=6, word_delta=12, min_word_area=20,
             max_vertical_height=30)
@@ -225,10 +207,13 @@ class ObjectRecognitor(BaseFilter):
                 textual.add(s)
             else:
                 graphical.add(s)
+        
+        print len(graphical)
 
         image = Image.create(image.mode, image.width, image.height)
-        for s in graphical:
-            s.display(image, color=s.color)
+        for s in text_regions:
+            s.display(image)
+            s.display_bounds(image)
 
         return image
 
