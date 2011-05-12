@@ -88,13 +88,16 @@ class Segment(object):
         total = float((r - l + 1) * (b - t + 1))
         return len(self.area) / total
     
-    def toimage(self, mode='RGB', color=(255, 255, 255), border=0, rotate=None):
+    def toimage(self, mode='RGB', color=(255, 255, 255), border=0, angle=None):
         result = Image.create(mode, self.width + 2 * border, self.height + 2 * border)
         p = result.pixels
         l, t = self.left, self.top
         for x, y in self.area:
             p[x-l+border, y-t+border] = color
-        return result.rotate(rotate) if rotate else result
+        if angle:
+            return result.rotate(angle)
+        else:
+            return result
 
     def display(self, image, color=None, ):
         """Display this object on given image.
