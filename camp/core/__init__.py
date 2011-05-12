@@ -113,7 +113,12 @@ class Image(object):
         return Image(self.backend.filter(filter_))
 
     def rotate(self, angle):
+        """Rotate image by given angle producing rotated image."""
         return Image(self.backend.rotate(angle))
+
+    def show(self):
+        """Show image using system viewer. Debugging purposes only."""
+        return self.backend.show()
 
     def colormask(self, colors):
         """Create mask that masks given set of colors in the image."""
