@@ -1,8 +1,6 @@
 """Core classes & functions."""
 
-import PIL
-
-from PIL import ImageOps
+from PIL import Image as PILImage, ImageOps, ImageDraw
 from PIL import ImageStat as PILImageStat
 
 
@@ -69,7 +67,7 @@ class Image(object):
     def draw(self):
         """Return reference to PIL's ImageDraw class intance allowing to draw
         on current image."""
-        return PIL.ImageDraw.Draw(self.backend)
+        return ImageDraw.Draw(self.backend)
 
     ### Public methods
     
@@ -114,6 +112,9 @@ class Image(object):
         :param filter_: PIL filter"""
         return Image(self.backend.filter(filter_))
 
+    def rotate(self, angle):
+        return Image(self.backend.rotate(angle))
+
     def colormask(self, colors):
         """Create mask that masks given set of colors in the image."""
         colors = set(colors)
@@ -133,6 +134,18 @@ class Image(object):
         :param filename: path to image file"""
         return self.backend.save(filename)
     
+    ### Pickle support
+
+    def __getstate__(self):
+        return {
+            'mode': self.mode,
+            'size': self.backend.size,
+            'data': self.backend.tostring()}
+
+    def __setstate__(self, state):
+        self.__backend = PILImage.fromstring(
+            state['mode'], state['size'], state['data'])
+
     ### Constructors
     
     @classmethod
@@ -144,7 +157,7 @@ class Image(object):
         :param width: desired image width
         :param height: desired image height
         :param background: background color"""
-        image = Image(PIL.Image.new(mode, (width, height)))
+        image = Image(PILImage.new(mode, (width, height)))
         if background:
             draw = image.draw
             draw.rectangle((0, 0, image.width-1, image.height-1), fill=background)
@@ -155,7 +168,7 @@ class Image(object):
         """Load image from given file and return instance of Image class.
         
         :param filename: path to image file"""
-        return Image(PIL.Image.open(filename))
+        return Image(PILImage.open(filename))
 
 
 class ImageStat(object):
