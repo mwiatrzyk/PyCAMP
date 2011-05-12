@@ -2,7 +2,7 @@ import weakref
 import logging
 
 from camp.core import Image
-from camp.core.containers import Segment, SegmentSet
+from camp.core.containers import Segment
 from camp.filter import BaseFilter
 
 log = logging.getLogger(__name__)
@@ -136,5 +136,5 @@ class Segmentizer(BaseFilter):
         # Create connection matrix using previously labelled pixel map
         segments = self.__get_neighbours(segments, pixel_map, image)
         log.debug("total number of segments extracted: %d", len(segments))
-        storage[self.__class__.__name__] = {'segments': SegmentSet(segments)}
+        storage[self.__class__.__name__] = {'segments': segments}
         return image

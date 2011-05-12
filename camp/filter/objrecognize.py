@@ -46,16 +46,27 @@ class OCR(object):
 class ObjectRecognitor(BaseFilter):
     __f_enable_caching__ = False
 
-    def __find_background(self, segments):
-        """Find and return segment(-s) that is said to be *background* segment
-        (the segment that has maximal number of neighbours).
-        
-        :rtype: list of background segments"""
-        tmp = max(segments, key=lambda x: len(x.neighbours))
-        return filter(lambda x: len(x.neighbours) == len(tmp.neighbours), segments)
+    def __find_background(self, image, segments):
+        """Find and return "background" segments. A segment is said to be
+        background if one of its bounds matches corresponding image bound."""
+        def is_background(x):
+            return\
+                x.left == 0 or\
+                x.top == 0 or\
+                x.right == image.width-1 or\
+                x.bottom == image.height-1
+        return set(filter(is_background, segments))
 
-    def __find_text(self, image, segments, max_width=40, max_height=30, letter_delta=6, word_delta=12, min_word_area=20, max_vertical_height=30):
-        """Find and return group of segments composing textual information."""
+    def __find_text(self, image, segments_, max_width=40, max_height=30, letter_delta=6, word_delta=12, min_word_area=20, max_vertical_height=30):
+        """Find and return group of segments composing textual information.
+        
+        :param max_width: maximal width of potential letter
+        :param max_height: maximal height of potential letter
+        :param letter_delta: maximal distance between two letters
+        :param word_delta: maximal distance between two words
+        :param min_word_area: minimal area of pixels composing word (used
+            to remove minor segments before OCR procedure)
+        :param max_vertical_height: maximal height of vertical letters"""
 
         def box_filter(segments):
             """Removes segments which bounds does not fit in given maximal
@@ -79,6 +90,8 @@ class ObjectRecognitor(BaseFilter):
                     if n not in indices:
                         candidates.add(s)
                         break
+                else:
+                    segments_.remove(s)  # Letter internal segments won't be used
             return candidates
         
         def merge_segments(segments):
@@ -107,14 +120,8 @@ class ObjectRecognitor(BaseFilter):
         
         def extract_text_regions(segments):
             """Extracts regions that are supposed to be text regions and
-            perform OCR recognition on text region candidates. Returns 
+            perform OCR recognition on text region candidates. """
             
-            :param letter_delta: maximal distance between two letters
-            :param word_delta: maximal distance between two words
-            :param min_word_area: minimal area of pixels composing word (used
-                to remove minor segments before OCR procedure)
-            :param max_width: maximal width of vertical letters"""
-
             def group(bound_map, delta, horizontal=True):
                 Y1 = 1 if horizontal else 0
                 Y2 = 3 if horizontal else 2
@@ -173,7 +180,7 @@ class ObjectRecognitor(BaseFilter):
             return horizontal_text.union(sentences)
         
         # Workflow
-        candidates = box_filter(segments)
+        candidates = box_filter(segments_)
         candidates = clear_letters(candidates)
         candidates = merge_segments(candidates)
         candidates = extract_text_regions(candidates)
@@ -201,9 +208,30 @@ class ObjectRecognitor(BaseFilter):
 
         # Text recognition process
         log.info('performing text regions search and OCR recognition process')
-        text_regions = self.__find_text(image, segments)
+        text_regions = self.__find_text(
+            image, segments,
+            max_width=40, max_height=30,
+            letter_delta=6, word_delta=12, min_word_area=20,
+            max_vertical_height=30)
         log.info('found %d text regions', len(text_regions))
+        
+        # Now split set of segment into two disjoined sets - one containing
+        # textual segments, and one containing graphical segments
+        log.info('splitting set of segments into textual and graphical segment sets')
+        textual = set()
+        graphical = set()
+        for s in segments:
+            if isinstance(s.genre, Text):
+                textual.add(s)
+            else:
+                graphical.add(s)
+
+        image = Image.create(image.mode, image.width, image.height)
+        for s in graphical:
+            s.display(image, color=s.color)
+
         return image
+
         background = self.__find_background(segments)
         img = Image.create(image.mode, image.width, image.height)
         for b in background:

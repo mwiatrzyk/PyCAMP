@@ -1,10 +1,9 @@
 import logging
 
 from camp.core import Image, ImageStat
-from camp.core.colorspace import Convert
+from camp.core.colorspace import Convert, Range
 from camp.util import Random
 from camp.filter import BaseFilter
-from camp.convert import rgb2hsv, hsv2rgb
 from camp.clusterer.metric import euclidean
 from camp.clusterer.kmeans import kmeans, Cluster
 
@@ -31,17 +30,15 @@ class Quantizer(BaseFilter):
             threshold, colors are said to be equal"""
         super(Quantizer, self).\
             __init__(next_filter=next_filter)
-        self.colorspace = colorspace.lower() if colorspace else\
-            self.__class__.__q_colorspace__.lower()
+        self.colorspace = colorspace.upper() if colorspace else\
+            self.__class__.__q_colorspace__.upper()
         self.metric = metric or self.__class__.__q_metric__
-        self.__c_encoder = getattr(Convert, "rgb2%s" % self.colorspace)\
-            if self.colorspace != 'rgb' else lambda x: x
-        self.__c_decoder = getattr(Convert, "%s2rgb" % self.colorspace)\
-            if self.colorspace != 'rgb' else lambda x: x
+        self.__c_encoder = getattr(Convert, "rgb2%s" % self.colorspace.lower())\
+            if self.colorspace != 'RGB' else lambda x: x
+        self.__c_decoder = getattr(Convert, "%s2rgb" % self.colorspace.lower())\
+            if self.colorspace != 'RGB' else lambda x: x
         self.threshold1 = threshold1 or self.__class__.__q_threshold1__
         self.threshold2 = threshold2 or self.__class__.__q_threshold2__
-        log.debug("quantizer initialized: colorspace=%s, t1=%s, t2=%s",
-            self.colorspace, self.threshold1, self.threshold2)
 
     def __get_samples(self, image):
         """Prepare and return list of samples for clusterer."""
@@ -80,9 +77,10 @@ class Quantizer(BaseFilter):
         npixels = float(image.npixels)
         metric = self.metric
         dim = image.nchannels
-        max_difference = metric(
-            self.__c_encoder((0, 0, 0)),
-            self.__c_encoder((255, 255, 255)))
+        rng = getattr(Range, self.colorspace, None)
+        if not rng:
+            raise ValueError("%s: range for %s colorspace is not specified" % (Range, self.colorspace))
+        max_difference = metric(*rng)
         # Sort colors by number of occurences in the image, descending and
         # ignore rare colors
         colors = sorted([c for c in image.colors(encoder=self.__c_encoder) if c[0]/npixels*100 >= t1], key=lambda x: -x[0])
@@ -114,6 +112,10 @@ class Quantizer(BaseFilter):
             raise TypeError("image: expecting %s, found %s" % (Image, type(image)))
         if image.mode.upper() != 'RGB':
             raise ValueError("image: expecting RGB image, found %s" % image.mode.upper())
+        log.info(
+            "performing quantization step with following settings: "
+            "colorspace=%s, t1=%s, t2=%s", self.colorspace, self.threshold1,
+            self.threshold2)
         # Get samples from the source image
         samples = self.__get_samples(image)
         log.debug("number of colors before quantization: %d", len(samples))
@@ -125,72 +127,3 @@ class Quantizer(BaseFilter):
         log.debug("resulting clusters: %s", clusters)
         # Create output image
         return self.__create_result_image(image, clusters)
-
-class QuadTreeNode(object):
-
-    def __init__(self, left, top, size, parent=None):
-        self.nw = None
-        self.ne = None
-        self.sw = None
-        self.se = None
-        self.left = left
-        self.top = top
-        self.size = size
-        self.parent = parent
-        self.pixels = {}
-
-    def __repr__(self):
-        return "<%s(left=%d, top=%d, size=%d)>" %\
-            (self.__class__.__name__, self.left, self.top, self.size)
-
-
-class QuadTreeSplitter(BaseFilter):
-    
-    def __build_quadtree(self, image, src_left, src_top, src_right, src_bottom):
-        draw = image.draw
-        pixels = image.pixels
-        def proxy(parent):
-            left, top, size = parent.left, parent.top, parent.size
-            cx = left + size / 2
-            cy = top + size / 2
-            if left+size < src_left or left > src_right:
-                return
-            if top+size < src_top or top > src_bottom:
-                return
-            if size > 2:
-                parent.nw = QuadTreeNode(left, top, size/2, parent=parent)
-                proxy(parent.nw)
-                parent.ne = QuadTreeNode(cx, top, size/2, parent=parent)
-                proxy(parent.ne)
-                parent.sw = QuadTreeNode(left, cy, size/2, parent=parent)
-                proxy(parent.sw)
-                parent.se = QuadTreeNode(cx, cy, size/2, parent=parent)
-                proxy(parent.se)
-            else:
-                for i in xrange(size):
-                    for j in xrange(size):
-                        parent.pixels[left+i, top+j] = pixels[left+i, top+j]
-        tree = QuadTreeNode(0, 0, image.width)
-        proxy(tree)
-        return tree
-
-    def __merge_quadtree(self, root):
-        ptr = root
-        while ptr.nw:
-            ptr = ptr.nw
-        print ptr
-
-    def process(self, image):
-        background = max(image.colors(), key=lambda x: x[0])[1]
-        powers = [2**n for n in xrange(32)]
-        min_size = max(image.width, image.height)
-        for size in powers:
-            if size > min_size:
-                break
-        src_left = (size - image.width) / 2
-        src_top = (size - image.height) / 2
-        wrapped = Image.create(image.mode, size, size, background=background)
-        wrapped.paste(image, src_left, src_top)
-        root = self.__build_quadtree(wrapped, src_left, src_top, src_left+image.width-1, src_top+image.height-1)
-        self.__merge_quadtree(root)
-        return wrapped
