@@ -2,6 +2,12 @@
 import math
 
 
+class Range(object):
+    """Minimal and maximal colors in colorspaces."""
+    RGB = ((0, 0, 0), (255, 255, 255))
+    LAB = ((0, -150, -100), (100, 100, 150))
+
+
 class Convert(object):
     """Set of functions to convert from one colorspace to another.
     :meth:`rgb2lab` and :meth:`lab2rgb` thanks to the following article:
