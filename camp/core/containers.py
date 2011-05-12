@@ -1,3 +1,18 @@
+from camp.core import Image
+
+
+class SegmentGenre(object):
+    pass
+
+
+class Text(SegmentGenre):
+    
+    def __init__(self, text):
+        self.text = text
+
+    def __repr__(self):
+        return "%s(text='%s')" % (self.__class__.__name__, self.text)
+
 
 class Segment(object):
     """Container that holds single extracted segment from image. Each segment
@@ -18,29 +33,44 @@ class Segment(object):
         self.color = color
         self.area = set()
         self.neighbours = set()
+        self.genre = None
 
     @property
     def bounds(self):
-        """Return bounds of this extracted object as a tuple of ``(x_min,
-        y_min, x_max, y_max)``."""
+        """Return bounds of this extracted object as a tuple of ``(left, top,
+        right, bottom)``."""
         if not self.area:
             return
-        xmin = min(self.area, key=lambda x: x[0])
-        xmax = max(self.area, key=lambda x: x[0])
-        ymin = min(self.area, key=lambda x: x[1])
-        ymax = max(self.area, key=lambda x: x[1])
-        return xmin[0], ymin[1], xmax[0], ymax[1]
+        return self.left, self.top, self.right, self.bottom
+    
+    @property
+    def left(self):
+        """X coordinate of top left hand corner."""
+        return min(self.area or [(-1, -1)], key=lambda x: x[0])[0]
+
+    @property
+    def top(self):
+        """Y coordinate of top left hand corner."""
+        return min(self.area or [(-1, -1)], key=lambda x: x[1])[1]
+
+    @property
+    def right(self):
+        """X coordinate of bottom right hand corner."""
+        return max(self.area or [(-1, -1)], key=lambda x: x[0])[0]
+
+    @property
+    def bottom(self):
+        """Y coordinate of bottom right hand corner."""
+        return max(self.area or [(-1, -1)], key=lambda x: x[1])[1]
 
     @property
     def width(self):
-        l, t, r, b = self.bounds
-        return r - l
+        return self.right - self.left + 1
 
     @property
     def height(self):
-        l, t, r, b = self.bounds
-        return b - t
-    
+        return self.bottom - self.top + 1
+
     @property
     def barycenter(self):
         x = sum([a[0] for a in self.area])
@@ -58,7 +88,15 @@ class Segment(object):
         total = float((r - l + 1) * (b - t + 1))
         return len(self.area) / total
     
-    def display(self, image, color=None):
+    def toimage(self, mode='RGB', color=(255, 255, 255), border=0, rotate=None):
+        result = Image.create(mode, self.width + 2 * border, self.height + 2 * border)
+        p = result.pixels
+        l, t = self.left, self.top
+        for x, y in self.area:
+            p[x-l+border, y-t+border] = color
+        return result.rotate(rotate) if rotate else result
+
+    def display(self, image, color=None, ):
         """Display this object on given image.
         
         :param image: reference to image on which object will be displayed
@@ -79,41 +117,43 @@ class Segment(object):
             color = (255, 0, 0)
         image.draw.rectangle(self.bounds, outline=color)
 
+    def display_barycenter(self, image, color=None):
+        """Displays barycenter of this segment on given image.
+        
+        :param image: reference to image on which barycenter point will be
+            placed
+        :param color: color of barycenter point"""
+        if not color:
+            color = (0, 255, 0)
+        image.pixels[self.barycenter] = color
+
     def __repr__(self):
         """Return text representation of this object."""
-        return "<%s(color=%s, npixels=%d, bounds=%s)>" %\
-            (self.__class__.__name__, self.color, len(self.area), self.bounds)
+        return "<%s(npixels=%d, bounds=%s)>" %\
+            (self.__class__.__name__, len(self.area), self.bounds)
 
 
-class SegmentSet(set):
+class SegmentGroup(Segment):
     
-    def merge(self, s1, s2):
-        """Merge two segments in segment set by joining segment with lower area
-        with segment with higher area. Segment with lower area is removed from
-        the set. This method returns new set of segments.
-        
-        :param s1: first segment
-        :param s2: second segment"""
-        if s1 not in self or s2 not in self:
-            raise KeyError("both s1 and s2 segments must exist in set")
-        result = SegmentSet(self)
-        if len(s1.area) >= len(s2.area):
-            major, minor = s1, s2
-        else:
-            major, minor = s2, s1
-        # Join areas and set of neighbours
-        major.area.union(minor.area)
-        major.neighbours.union(minor.neighbours)
-        # If major segment is a neighbour to minor segment remove such
-        # neighbourhood
-        if minor in major.neighbours:
-            major.neighbours.remove(minor)
-        # Clean set of neighbours of segments neighbouring with current minor
-        # segment and also add major segment as neighbour
-        for n in minor.neighbours:
-            n.neighbours.remove(minor)
-            n.neighbours.add(major)
-        result.remove(minor)
-        return result
+    def __init__(self, index):
+        self.index = index
+        self.segments = set()
+        self._genre = None
 
+    @property
+    def genre(self):
+        return self._genre
 
+    @genre.setter
+    def genre(self, value):
+        self._genre = value
+        for s in self.segments:
+            s.genre = value
+
+    @property
+    def area(self):
+        return set.union(*[s.area for s in self.segments])
+
+    @property
+    def neighbours(self):
+        return set.union(*[s.neighbours for s in self.segments])
