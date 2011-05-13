@@ -1,7 +1,7 @@
 from camp.core import Image
 
 
-class SegmentGenre(object):
+class BaseGenre(object):
     """Class that keeps information about segment genre (is it a text, a
     rectangle, a circle or any other object). Concrete genres must inherit from
     this base one."""
@@ -10,7 +10,24 @@ class SegmentGenre(object):
         return "%s()" % self.__class__.__name__
 
 
-class Text(SegmentGenre):
+class HybridGenre(BaseGenre):
+    """Genre composed with other genres."""
+
+    def __init__(self, composites=None):
+        self._composite = set(composites or [])
+
+    @property
+    def composite(self):
+        return self._composite
+
+    def __repr__(self):
+        subreprs = [repr(c) for c in self.composite]
+        return "%s(%s)" % (
+            self.__class__.__name__,
+            ', '.join(subreprs))
+
+
+class Text(BaseGenre):
     """Genre representing textual regions."""
     
     def __init__(self, text):
@@ -38,11 +55,41 @@ class Segment(object):
         :param index: unique integer index of this segment. Indices are used to
             provide neighbourhood relationship between segments
         :param color: color of this object used in image"""
-        self.index = index
-        self.color = color
-        self.area = set()
-        self.neighbours = set()
-        self.genre = None
+        self._index = index
+        self._color = color
+        self._area = set()
+        self._neighbours = set()
+        self._genre = None
+    
+    @property
+    def index(self):
+        """Index of this segment."""
+        return self._index
+
+    @property
+    def color(self):
+        """Color of this segment."""
+        return self._color
+
+    @property
+    def area(self):
+        """Set of area pixel coordinates of this segment."""
+        return self._area
+
+    @property
+    def neighbours(self):
+        """Set of adjacent segment indices."""
+        return self._neighbours
+
+    @property
+    def genre(self):
+        """Instance of :class:`BaseGenre` representing genre of this segment."""
+        return self._genre
+    
+    @genre.setter
+    def genre(self, value):
+        """Genre setter."""
+        self._genre = value
 
     @property
     def bounds(self):
@@ -96,6 +143,18 @@ class Segment(object):
         (entire bounding rect is filled with pixels)."""
         return len(self.area) / float(self.width * self.height)
     
+    @property
+    def vfactor(self):
+        """The bigger the value of this property is, the more 'vertical' is the
+        segment."""
+        return float(self.height) / float(self.width)
+
+    @property
+    def hfactor(self):
+        """The bigger the value of this property is, the more 'horizontal' is
+        the segment."""
+        return float(self.width) / float(self.height)
+
     def toimage(self, mode='RGB', color=(255, 255, 255), border=0, angle=None):
         """Convert this segment to image.
         
@@ -160,23 +219,24 @@ class SegmentGroup(Segment):
         """Create new segment group instance.
         
         :param index: index assigned to this segment group"""
-        self.index = index
-        self.segments = set()
-        self._genre = None
+        super(SegmentGroup, self).__init__(index=index, color=None)
+        self._segments = set()
+    
+    @property
+    def segments(self):
+        return self._segments
 
     @property
     def genre(self):
-        """Genre class instance or None if no genre assigned (unknown
-        genre)."""
+        """Genre of this segment group."""
         return self._genre
 
     @genre.setter
     def genre(self, value):
-        """Genre setter. It will also set genres in underlying segments or
-        another segment groups."""
+        """Genre setter."""
         self._genre = value
         for s in self.segments:
-            s.genre = value
+            s.genre = value  # Set genre in underlying segments also
 
     @property
     def area(self):

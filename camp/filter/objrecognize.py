@@ -37,7 +37,11 @@ class ObjectRecognitor(BaseFilter):
     :attr __or_word_delta__: maximal distance between two words
     :attr __or_min_word_area__: minimal area of pixels composing word (used
         to remove minor segments before OCR procedure)
-    :attr __or_max_vertical_height__: maximal height of vertical letters"""
+    :attr __or_max_vertical_height__: maximal height of vertical letters. Used
+        to ignore already found horizontal text segments while searching for
+        vertical text segments
+    :attr __or_min_vfactor__: minimal value of segment's ``vfactor`` property
+        that still makes the segment's orientation vertical"""
     __or_ocr__ = 'tesseract'
     __or_max_width__ = 40
     __or_max_height__ = 30
@@ -45,6 +49,7 @@ class ObjectRecognitor(BaseFilter):
     __or_word_delta__ = 12
     __or_min_word_area__ = 20
     __or_max_vertical_height__ = 30
+    __or_min_vfactor__ = 2.5
 
     def __find_background(self, image, segments):
         """Find and return "background" segments. A segment is said to be
@@ -65,7 +70,8 @@ class ObjectRecognitor(BaseFilter):
         letter_delta = int(self.config.get('letter_delta', self.__class__.__or_letter_delta__))
         word_delta = int(self.config.get('word_delta', self.__class__.__or_word_delta__))
         min_word_area = int(self.config.get('min_word_area', self.__class__.__or_min_word_area__))
-        max_vertical_height = int(self.config.get('max_vertical_height', self.__or_max_vertical_height__))
+        max_vertical_height = int(self.config.get('max_vertical_height', self.__class__.__or_max_vertical_height__))
+        min_vfactor = float(self.config.get('min_vfactor', self.__class__.__or_min_vfactor__))
 
         def box_filter(segments):
             """Removes segments which bounds does not fit in given maximal
@@ -192,12 +198,18 @@ class ObjectRecognitor(BaseFilter):
         OCR = ocr_plugins.load_plugin(ocr)
         ocr = OCR(os.path.join('data', 'ocr', ocr))
         for c in candidates:
-            text = ocr.perform(c, angles=[0, 270])
+            if c.vfactor >= min_vfactor:  # Vertical text test
+                text = ocr.perform(c, angles=[270, 90, 0])
+            else:
+                text = ocr.perform(c)
             if text:
                 c.genre = Text(text=text)
                 result.add(c)
 
         return result
+    
+    def recognize_graphical_segments(self, image, segments):
+        pass
 
     def process(self, image, storage=None):
         segments = storage.get('Segmentizer', {}).get('segments')
@@ -221,7 +233,8 @@ class ObjectRecognitor(BaseFilter):
         log.info('...found %d text regions combined of total %d segments', len(text_regions), len(textual))
         log.info('...remaining non-text segments: %d', len(graphical))
         
-        #print len(graphical)
+        # Evaluate primitive recognition process on non-text segments
+        self.recognize_graphical_segments(image, graphical)
 
         image = Image.create(image.mode, image.width, image.height)
         for s in text_regions:
