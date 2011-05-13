@@ -40,7 +40,7 @@ class ObjectRecognitor(BaseFilter):
                 x.bottom == image.height-1
         return set(filter(is_background, segments))
 
-    def __find_text(self, image, segments_, ocr='tesseract', max_width=40,
+    def extract_text(self, image, segments_, ocr='tesseract', max_width=40,
                     max_height=30, letter_delta=6, word_delta=12,
                     min_word_area=20, max_vertical_height=30):
         """Find and return group of segments composing textual information.
@@ -189,7 +189,7 @@ class ObjectRecognitor(BaseFilter):
 
         # Text recognition process
         log.info('performing text regions search and OCR recognition process')
-        text_regions = self.__find_text(
+        text_regions = self.extract_text(
             image, segments,
             ocr='tesseract',
             max_width=40, max_height=30,
