@@ -27,7 +27,24 @@ def right(a, b):
 
 
 class ObjectRecognitor(BaseFilter):
-    __f_enable_caching__ = False
+    """Filter used to split segments into textual and graphical segments and to
+    recognize both text and graphical elements.
+
+    :attr __or_ocr__: name of plugin used to perform OCR recognition step
+    :attr __or_max_width__: maximal width of potential letter
+    :attr __or_max_height__: maximal height of potential letter
+    :attr __or_letter_delta__: maximal distance between two letters
+    :attr __or_word_delta__: maximal distance between two words
+    :attr __or_min_word_area__: minimal area of pixels composing word (used
+        to remove minor segments before OCR procedure)
+    :attr __or_max_vertical_height__: maximal height of vertical letters"""
+    __or_ocr__ = 'tesseract'
+    __or_max_width__ = 40
+    __or_max_height__ = 30
+    __or_letter_delta__ = 6
+    __or_word_delta__ = 12
+    __or_min_word_area__ = 20
+    __or_max_vertical_height__ = 30
 
     def __find_background(self, image, segments):
         """Find and return "background" segments. A segment is said to be
@@ -40,18 +57,15 @@ class ObjectRecognitor(BaseFilter):
                 x.bottom == image.height-1
         return set(filter(is_background, segments))
 
-    def extract_text(self, image, segments_, ocr='tesseract', max_width=40,
-                    max_height=30, letter_delta=6, word_delta=12,
-                    min_word_area=20, max_vertical_height=30):
-        """Find and return group of segments composing textual information.
-        
-        :param max_width: maximal width of potential letter
-        :param max_height: maximal height of potential letter
-        :param letter_delta: maximal distance between two letters
-        :param word_delta: maximal distance between two words
-        :param min_word_area: minimal area of pixels composing word (used
-            to remove minor segments before OCR procedure)
-        :param max_vertical_height: maximal height of vertical letters"""
+    def extract_text(self, image, segments_):
+        """Find and return group of segments composing textual information."""
+        ocr = self.config.get('ocr', self.__class__.__or_ocr__)
+        max_width = int(self.config.get('max_width', self.__class__.__or_max_width__))
+        max_height = int(self.config.get('max_height', self.__class__.__or_max_height__))
+        letter_delta = int(self.config.get('letter_delta', self.__class__.__or_letter_delta__))
+        word_delta = int(self.config.get('word_delta', self.__class__.__or_word_delta__))
+        min_word_area = int(self.config.get('min_word_area', self.__class__.__or_min_word_area__))
+        max_vertical_height = int(self.config.get('max_vertical_height', self.__or_max_vertical_height__))
 
         def box_filter(segments):
             """Removes segments which bounds does not fit in given maximal
@@ -70,13 +84,16 @@ class ObjectRecognitor(BaseFilter):
             of ``segments`` sequence."""
             candidates = set()
             indices = set([s.index for s in segments])
+            permanently_removed = 0
             for s in segments:
                 for n in s.neighbours:
                     if n not in indices:
                         candidates.add(s)
                         break
                 else:
+                    permanently_removed += 1
                     segments_.remove(s)  # Letter internal segments won't be used
+            log.info('...permanently removed segments after letter clear process: %d', permanently_removed)
             return candidates
         
         def merge_segments(segments):
@@ -186,20 +203,14 @@ class ObjectRecognitor(BaseFilter):
         segments = storage.get('Segmentizer', {}).get('segments')
         if not segments:
             raise ValueError("no segments found: did you call Segmentizer filter first?")
+        log.info('performing segment recognition step')
 
         # Text recognition process
-        log.info('performing text regions search and OCR recognition process')
-        text_regions = self.extract_text(
-            image, segments,
-            ocr='tesseract',
-            max_width=40, max_height=30,
-            letter_delta=6, word_delta=12, min_word_area=20,
-            max_vertical_height=30)
-        log.info('found %d text regions', len(text_regions))
+        log.info('...searching for text regions')
+        text_regions = self.extract_text(image, segments)
         
         # Now split set of segment into two disjoined sets - one containing
         # textual segments, and one containing graphical segments
-        log.info('splitting set of segments into textual and graphical segment sets')
         textual = set()
         graphical = set()
         for s in segments:
@@ -207,8 +218,10 @@ class ObjectRecognitor(BaseFilter):
                 textual.add(s)
             else:
                 graphical.add(s)
+        log.info('...found %d text regions combined of total %d segments', len(text_regions), len(textual))
+        log.info('...remaining non-text segments: %d', len(graphical))
         
-        print len(graphical)
+        #print len(graphical)
 
         image = Image.create(image.mode, image.width, image.height)
         for s in text_regions:

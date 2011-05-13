@@ -39,17 +39,12 @@ def neighbourhood_with_bound_check(x, y, w, h):
 
 
 class Segmentizer(BaseFilter):
-    """Class used to perform segmentation of given image. The output of this
-    class is following:
-        * list of all segments
-        * matrix NxN of connections between segments"""
-    __f_enable_caching__ = True
+    """Filter performing segmentation process."""
     
     def __create_coordinate_sets(self, image):
         """Create map of ``color->pixel_coord_set`` for all pixels composing
         given image. Results of this method are later used by
         :meth:`__get_segments`."""
-        log.debug('creating set of pixel coordinates for each color')
         pixels = {}
         ptr = image.pixels
         for x in xrange(image.width):
@@ -63,7 +58,7 @@ class Segmentizer(BaseFilter):
         method are later used to create connection matrix."""
         # Neighbourhood generator (coordinates of pixels surrounding given
         # ``(x,y)`` pixel with itself)
-        log.debug('extracting segments from image')
+        log.info('...extracting segments from image')
         segments = []
         for color, coords in pixels.iteritems():
             while coords:
@@ -84,13 +79,13 @@ class Segmentizer(BaseFilter):
                 # Once stack is empty, new segment is extracted and should be
                 # added to the list of extracted segments
                 segments.append(segment)
+        log.info('...number of segments extracted: %d', len(segments))
         return segments
 
     def __label_pixels(self, segments, image):
         """Assign each pixel to its segment and return assignment map having
         same size as the image (map[x,y] stores index of segment from
         ``segments`` list to which current pixel belongs)."""
-        log.debug('labelling pixels in the image')
         pixel_map = [[None for _ in xrange(image.height)] for _ in xrange(image.width)]
         for s in segments:
             for x, y in s.area:
@@ -101,7 +96,7 @@ class Segmentizer(BaseFilter):
         """Fill ``neighbours`` property of each segment with weakrefs to
         neighbouring segments. This method will create undirected graph of
         segments."""
-        log.debug('creating list of neighbouring segments for each segment')
+        log.info('...creating list of adjacent segments for each segment')
         #nseg = len(segments)
         sorted_segments = sorted(segments, key=lambda x: x.index)
         #print sorted_segments[0].index, sorted_segments[1].index
@@ -135,6 +130,5 @@ class Segmentizer(BaseFilter):
         pixel_map = self.__label_pixels(segments, image)
         # Create connection matrix using previously labelled pixel map
         segments = self.__get_neighbours(segments, pixel_map, image)
-        log.debug("total number of segments extracted: %d", len(segments))
         storage[self.__class__.__name__] = {'segments': segments}
         return image

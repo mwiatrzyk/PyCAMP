@@ -29,10 +29,9 @@ class Quantizer(BaseFilter):
         :param threshold2: maximal percentage difference between white color
             and black color. If difference of two colors is less than given
             threshold, colors are said to be equal"""
-        super(Quantizer, self).\
-            __init__(next_filter=next_filter)
-        self.colorspace = config.get('colorspace', self.__class__.__q_colorspace__).upper()
-        self.metric = config.get('metric', self.__class__.__q_metric__)
+        super(Quantizer, self).__init__(next_filter=next_filter, config=config)
+        self.colorspace = self.config.get('colorspace', self.__class__.__q_colorspace__).upper()
+        self.metric = self.config.get('metric', self.__class__.__q_metric__)
         if not callable(self.metric):
             try:
                 module = __import__('camp.clusterer.metric', fromlist=[self.metric])
@@ -45,8 +44,10 @@ class Quantizer(BaseFilter):
             if self.colorspace != 'RGB' else lambda x: x
         self.__c_decoder = getattr(Convert, "%s2rgb" % self.colorspace.lower())\
             if self.colorspace != 'RGB' else lambda x: x
-        self.threshold1 = float(config.get('threshold1', self.__class__.__q_threshold1__))
-        self.threshold2 = float(config.get('threshold2', self.__class__.__q_threshold2__))
+        self.threshold1 = float(
+            self.config.get('threshold1', self.__class__.__q_threshold1__))
+        self.threshold2 = float(
+            self.config.get('threshold2', self.__class__.__q_threshold2__))
 
     def __get_samples(self, image):
         """Prepare and return list of samples for clusterer."""
@@ -123,7 +124,7 @@ class Quantizer(BaseFilter):
         log.info(
             "performing quantization step with following settings: "
             "colorspace=%s, metric=%s, t1=%s, t2=%s", self.colorspace,
-            self.metric, self.threshold1, self.threshold2)
+            self.metric.func_name, self.threshold1, self.threshold2)
         # Get samples from the source image
         samples = self.__get_samples(image)
         log.info("...number of colors before quantization: %d", len(samples))

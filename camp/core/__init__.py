@@ -1,5 +1,7 @@
 """Core classes & functions."""
 
+from hashlib import md5
+
 from PIL import Image as PILImage, ImageOps, ImageDraw
 from PIL import ImageStat as PILImageStat
 
@@ -115,6 +117,10 @@ class Image(object):
     def rotate(self, angle):
         """Rotate image by given angle producing rotated image."""
         return Image(self.backend.rotate(angle))
+
+    def checksum(self):
+        """Create and return md5 checksum of this image."""
+        return md5(self.backend.tostring()).hexdigest()
 
     def show(self):
         """Show image using system viewer. Debugging purposes only."""

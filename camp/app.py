@@ -75,19 +75,15 @@ class Application(object):
         
         :param source: source image file path
         :param dest: destination data file path"""
-        # Calculate md5 checksum of a file (used by caching utility)
-        key = md5(open(source).read()).hexdigest()
-
         # Load source image
         source = Image.load(source).convert('RGB')
         
         # Create filter stack
         f = None
-        f = ObjectRecognitor(next_filter=f)
-        f = Segmentizer(next_filter=f)
+        f = ObjectRecognitor(next_filter=f, config=self.config('filter:ObjectRecognitor'))
+        f = Segmentizer(next_filter=f, config=self.config('filter:Segmentizer'))
         #f = ImageFeatureDetector(next_filter=f)
         f = Quantizer(next_filter=f, config=self.config('filter:Quantizer'))
         
-        key=None
         # Execute filter stack
-        f(source, storage={}, key=key).save(dest)
+        f(source, storage={}, key=source.checksum()).save(dest)

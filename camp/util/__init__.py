@@ -19,3 +19,14 @@ class Random(random.Random):
     def uniform(self):
         """Generate random number from range specified in constructor."""
         return super(Random, self).uniform(self.rmin, self.rmax)
+
+
+def asbool(value):
+    """Convert given value to boolean True or False."""
+    if isinstance(value, bool):
+        return value
+    if value in ('True', 'true', 'Yes', 'yes', 1):
+        return True
+    if value in ('False', 'false', 'No', 'no', 0):
+        return False
+    return bool(value)
