@@ -2,12 +2,21 @@ from camp.core import Image
 
 
 class SegmentGenre(object):
-    pass
+    """Class that keeps information about segment genre (is it a text, a
+    rectangle, a circle or any other object). Concrete genres must inherit from
+    this base one."""
+
+    def __repr__(self):
+        return "%s()" % self.__class__.__name__
 
 
 class Text(SegmentGenre):
+    """Genre representing textual regions."""
     
     def __init__(self, text):
+        """Create new Text genre instance.
+        
+        :param text: text found by OCR software"""
         self.text = text
 
     def __repr__(self):
@@ -65,14 +74,17 @@ class Segment(object):
 
     @property
     def width(self):
+        """Width of bounding rect of this segment."""
         return self.right - self.left + 1
 
     @property
     def height(self):
+        """Height of bounding rect of this segment."""
         return self.bottom - self.top + 1
 
     @property
     def barycenter(self):
+        """Segment's barycenter coordinates."""
         x = sum([a[0] for a in self.area])
         y = sum([a[1] for a in self.area])
         l = float(len(self.area))
@@ -80,15 +92,20 @@ class Segment(object):
 
     @property
     def coverage(self):
-        """Return value representing coverage of bounding rect pixels by
-        object's pixels. Returned value ranges from 0 (no object pixels) up to
-        1 (all bounding rect's pixels are object's pixels; this means, that
-        object is a rectangle)."""
-        l, t, r, b = self.bounds
-        total = float((r - l + 1) * (b - t + 1))
-        return len(self.area) / total
+        """Bounding rect coverage value in ranging from 0 (no pixels) up to 1
+        (entire bounding rect is filled with pixels)."""
+        return len(self.area) / float(self.width * self.height)
     
     def toimage(self, mode='RGB', color=(255, 255, 255), border=0, angle=None):
+        """Convert this segment to image.
+        
+        :param mode: mode of resulting image
+        :param color: color of segment pixels on resulting image
+        :param border: image border width (segment pixels will be surrounded by
+            border of background color if value is greater than 0)
+        :param angle: can be used to create rotated image (usefull for OCR to
+            recognize vertical text segments by rotating them to be a
+            horizontal text segments)"""
         result = Image.create(mode, self.width + 2 * border, self.height + 2 * border)
         p = result.pixels
         l, t = self.left, self.top
@@ -137,26 +154,38 @@ class Segment(object):
 
 
 class SegmentGroup(Segment):
+    """Groups two or more segments."""
     
     def __init__(self, index):
+        """Create new segment group instance.
+        
+        :param index: index assigned to this segment group"""
         self.index = index
         self.segments = set()
         self._genre = None
 
     @property
     def genre(self):
+        """Genre class instance or None if no genre assigned (unknown
+        genre)."""
         return self._genre
 
     @genre.setter
     def genre(self, value):
+        """Genre setter. It will also set genres in underlying segments or
+        another segment groups."""
         self._genre = value
         for s in self.segments:
             s.genre = value
 
     @property
     def area(self):
+        """Area of this segment group (union of all underlying segment
+        areas)."""
         return set.union(*[s.area for s in self.segments])
 
     @property
     def neighbours(self):
+        """Neighbours of this segment (union of all underlying segment
+        neighbours)."""
         return set.union(*[s.neighbours for s in self.segments])
