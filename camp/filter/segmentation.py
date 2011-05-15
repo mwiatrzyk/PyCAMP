@@ -107,7 +107,9 @@ class Segmentizer(BaseFilter):
                 for nx, ny in neighbourhood_with_bound_check(x, y, image.width, image.height):
                     this_label = pixel_map[nx][ny]
                     if label != this_label:
+                        sorted_segments[label].border.add((x, y))
                         sorted_segments[label].neighbours.add(this_label)
+                        sorted_segments[this_label].border.add((nx, ny))
                         sorted_segments[this_label].neighbours.add(label)
                         #matrix[label][this_label] = matrix[this_label][label] = True
         #for i in xrange(nseg):

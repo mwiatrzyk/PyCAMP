@@ -27,14 +27,19 @@ class HybridGenre(BaseGenre):
             ', '.join(subreprs))
 
 
+class FigureGenre(BaseGenre):
+    """Base class for figure genre classes."""
+
+
 class Text(BaseGenre):
     """Genre representing textual regions."""
     
-    def __init__(self, text):
+    def __init__(self, text, horizontal=True):
         """Create new Text genre instance.
         
         :param text: text found by OCR software"""
         self.text = text
+        self.horizontal = horizontal
 
     def __repr__(self):
         return "%s(text='%s')" % (self.__class__.__name__, self.text)
@@ -58,6 +63,7 @@ class Segment(object):
         self._index = index
         self._color = color
         self._area = set()
+        self._border = set()
         self._neighbours = set()
         self._genre = None
     
@@ -75,6 +81,11 @@ class Segment(object):
     def area(self):
         """Set of area pixel coordinates of this segment."""
         return self._area
+
+    @property
+    def border(self):
+        """Set of border pixel coordinates. This is subset of :param:`area`."""
+        return self._border
 
     @property
     def neighbours(self):
@@ -155,7 +166,7 @@ class Segment(object):
         the segment."""
         return float(self.width) / float(self.height)
 
-    def toimage(self, mode='RGB', color=(255, 255, 255), border=0, angle=None):
+    def toimage(self, mode='L', color=255, background=0, border=0, angle=None):
         """Convert this segment to image.
         
         :param mode: mode of resulting image
@@ -165,7 +176,7 @@ class Segment(object):
         :param angle: can be used to create rotated image (usefull for OCR to
             recognize vertical text segments by rotating them to be a
             horizontal text segments)"""
-        result = Image.create(mode, self.width + 2 * border, self.height + 2 * border)
+        result = Image.create(mode, self.width + 2 * border, self.height + 2 * border, background=background)
         p = result.pixels
         l, t = self.left, self.top
         for x, y in self.area:
@@ -175,7 +186,7 @@ class Segment(object):
         else:
             return result
 
-    def display(self, image, color=None, ):
+    def display(self, image, color=None):
         """Display this object on given image.
         
         :param image: reference to image on which object will be displayed
@@ -206,10 +217,17 @@ class Segment(object):
             color = (0, 255, 0)
         image.pixels[self.barycenter] = color
 
+    def display_border(self, image, color=None):
+        if not color:
+            color = (255, 255, 0)
+        p = image.pixels
+        for x, y in self.border:
+            p[x, y] = color
+
     def __repr__(self):
         """Return text representation of this object."""
-        return "<%s(npixels=%d, bounds=%s)>" %\
-            (self.__class__.__name__, len(self.area), self.bounds)
+        return "<%s(npixels=%d, bounds=%s, genre=%s)>" %\
+            (self.__class__.__name__, len(self.area), self.bounds, self.genre)
 
 
 class SegmentGroup(Segment):
