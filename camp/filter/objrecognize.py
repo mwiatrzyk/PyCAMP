@@ -2,28 +2,16 @@ import os
 import math
 import logging
 
-import camp.plugins.ocr as ocr_plugins
-
 from subprocess import Popen, PIPE
 
 from camp.filter import BaseFilter
 from camp.core import Image
 from camp.core.containers import SegmentGroup, Text
 from camp.core.colorspace import Convert
+from camp.plugins.ocr import OCRPluginBase
+from camp.plugins.recognition import RecognitorPluginBase
 
 log = logging.getLogger(__name__)
-
-
-def distance(a, b):
-    #return math.sqrt((b[0]-a[0])**2 + (b[1]-a[1])**2)
-    return abs(b[0]-a[0]) + abs(b[1]-a[1])
-
-
-def right(a, b):
-    dist = b[0] - a[0]
-    if dist < 0:
-        return 2**32
-    return dist + abs(b[1]-a[1])
 
 
 class ObjectRecognitor(BaseFilter):
@@ -50,17 +38,6 @@ class ObjectRecognitor(BaseFilter):
     __or_min_word_area__ = 20
     __or_max_vertical_height__ = 30
     __or_min_vfactor__ = 2.5
-
-    def __find_background(self, image, segments):
-        """Find and return "background" segments. A segment is said to be
-        background if one of its bounds matches corresponding image bound."""
-        def is_background(x):
-            return\
-                x.left == 0 or\
-                x.top == 0 or\
-                x.right == image.width-1 or\
-                x.bottom == image.height-1
-        return set(filter(is_background, segments))
 
     def extract_text(self, image, segments_):
         """Find and return group of segments composing textual information."""
@@ -193,24 +170,31 @@ class ObjectRecognitor(BaseFilter):
         candidates = merge_segments(candidates)
         candidates = extract_text_regions(candidates)
         
-        # Perform OCR recognition using external OCR process
+        # Perform OCR recognition using external OCR process or processes. OCR
+        # plugins can be comma-separated to make fallback processing (one does
+        # not recognize text - another will try again)
         result = set()
-        OCR = ocr_plugins.load_plugin(ocr)
-        ocr = OCR(os.path.join('data', 'ocr', ocr))
+        ocrs = []
+        for module in ocr.split(','):
+            ocrs.append(OCRPluginBase.load(module,
+                kwargs=dict(working_dir=os.path.join('data', 'ocr', ocr))))
         for c in candidates:
-            if c.vfactor >= min_vfactor:  # Vertical text test
-                text = ocr.perform(c, angles=[270, 90, 0])
-            else:
-                text = ocr.perform(c)
+            horizontal = True
+            for o in ocrs:
+                if c.vfactor >= min_vfactor:  # Vertical text test
+                    text = o.perform(c, angles=[270, 90, 0])
+                    if text:
+                        horizontal = False
+                else:
+                    text = o.perform(c)
+                if text:
+                    break
             if text:
-                c.genre = Text(text=text)
+                c.genre = Text(text=text, horizontal=horizontal)
                 result.add(c)
 
         return result
     
-    def recognize_graphical_segments(self, image, segments):
-        pass
-
     def process(self, image, storage=None):
         segments = storage.get('Segmentizer', {}).get('segments')
         if not segments:
@@ -233,51 +217,36 @@ class ObjectRecognitor(BaseFilter):
         log.info('...found %d text regions combined of total %d segments', len(text_regions), len(textual))
         log.info('...remaining non-text segments: %d', len(graphical))
         
-        # Evaluate primitive recognition process on non-text segments
-        self.recognize_graphical_segments(image, graphical)
-
-        image = Image.create(image.mode, image.width, image.height)
-        for s in text_regions:
-            s.display(image)
-            s.display_bounds(image)
-
-        return image
-
-        background = self.__find_background(segments)
-        img = Image.create(image.mode, image.width, image.height)
-        for b in background:
-            b.display(img)
-        return img
-        #maxc = max([c for c in image.colors()], key=lambda x: x[0])
-        #max_distance = distance((0, 0), (image.width-1, image.height-1)) #math.sqrt(image.width**2 + image.height**2)
-        return image
-        '''color = (0, 0, 0)
-        tmp = set(segments[color])
-        starting = min(tmp, key=lambda x: x.bounds[0]*x.bounds[1])
-        tmp.remove(starting)
-        i = 0
-        while tmp:
-            #starting.display(image)
-            next_ = min(tmp, key=lambda x: right(starting.barycenter, x.barycenter))
-            #print next_.barycenter
-            tmp.remove(next_)
-            starting = next_
-            i += 1
-            if i >= 50:
-                break
-        #starting.display(image)
-        #next_.display(image)
-        for i, a in enumerate(segments[color]):
-            continue
-            b = min(segments[color], key=lambda x: distance(x.barycenter, a.barycenter) if x is not a else max_distance)
-            if i < 1:
+        # Recognize graphical segments using object recognition plugins
+        figures = set()
+        plugins = RecognitorPluginBase.load_all()
+        processed = set()
+        log.info('...performing geometric figure recognition process using %d recognitors', len(plugins))
+        for g in graphical:
+            if g in processed:
                 continue
-            a.display(image)
-            b.display(image)
-            return image'''
-        for color in segments:
-            print color, Convert.rgb2hsv(color), sum([len(o.area) for o in segments[color]]) / float(image.width*image.height) * 100
-        image = Image.create(image.mode, image.width, image.height)
-        for o in segments[(94, 94, 94)]: #background:
-            o.display(image)
+            result = []
+            for Genre, Recognitor in plugins:
+                groups = set()
+                k = Recognitor().test(
+                    g, graphical.difference(set([g])), processed, groups)
+                if not k:
+                    continue
+                result.append((k, Genre, groups))
+            if not result:
+                continue
+            winner = max(result, key=lambda x: x[0])
+            if winner[-1]:
+                for g_ in winner[-1]:
+                    g_.genre = winner[1]()
+                    figures.add(g_)
+            else:
+                g.genre = winner[1]()
+                figures.add(g)
+        log.info('...done. Found %d matching figures', len(figures))
+        
+        # Save results for next filter
+        storage[self.__class__.__name__] = {
+            'text': text_regions,
+            'figures': figures}
         return image
