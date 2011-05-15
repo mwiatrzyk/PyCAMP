@@ -8,7 +8,7 @@ class Tesseract(OCRPluginBase):
 
     def create_infile(self, segment, angle=None):
         infile = os.path.join(self.working_dir, '%d_%d_%d_%d.tif' % segment.bounds)
-        segment.toimage(border=2, angle=angle).save(infile)
+        segment.toimage(color=0, background=255, border=2, angle=angle).save(infile)
         return infile
     
     def get_result(self, segment, infile):

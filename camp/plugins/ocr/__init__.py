@@ -74,11 +74,15 @@ class OCRPluginBase(object):
             if self.recognized(result):
                 return result
 
-
-def load_plugin(name):
-    """Load OCR plugin of given name and return the plugin class.
-    
-    :rtype: subclass of :class:`OCRPluginBase`"""
-    clsname = name.title()
-    module = __import__("camp.plugins.ocr.%s" % name, fromlist=[clsname])
-    return getattr(module, clsname)
+    @classmethod
+    def load(cls, name, args=None, kwargs=None):
+        """Import plugin of given name, create its instance using provided args
+        and kwargs and return it.
+        
+        :param name: plugin name. If name is invalid, ImportError will be
+            raised
+        :param args: positional arguments tuple
+        :param kwargs: keyword arguments dictionary"""
+        clsname = ''.join([n.title() for n in name.split('_')])
+        module = __import__("camp.plugins.ocr.%s" % name, fromlist=[clsname])
+        return getattr(module, clsname)(*(args or tuple()), **(kwargs or {}))
