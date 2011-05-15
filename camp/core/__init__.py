@@ -168,11 +168,10 @@ class Image(object):
         :param width: desired image width
         :param height: desired image height
         :param background: background color"""
-        image = Image(PILImage.new(mode, (width, height)))
         if background:
-            draw = image.draw
-            draw.rectangle((0, 0, image.width-1, image.height-1), fill=background)
-        return image
+            return Image(PILImage.new(mode, (width, height), background))
+        else:
+            return Image(PILImage.new(mode, (width, height)))
 
     @classmethod
     def load(cls, filename):
