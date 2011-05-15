@@ -1,3 +1,4 @@
+import math
 import random
 
 
@@ -19,6 +20,58 @@ class Random(random.Random):
     def uniform(self):
         """Generate random number from range specified in constructor."""
         return super(Random, self).uniform(self.rmin, self.rmax)
+
+
+class Vector(object):
+    
+    def __init__(self, items):
+        """Create new vector."""
+        self._items = tuple(items)
+
+    def length(self):
+        """Calculate length of this vector."""
+        return math.sqrt(sum([c**2 for c in self]))
+
+    def normalize(self):
+        """Return a vector that is normalized version of current one."""
+        l = self.length()
+        return Vector([c/l for c in self])
+
+    def dot(self, other):
+        """Calculate dot product of this vector and provided another vector."""
+        if len(self) != len(other):
+            raise TypeError("vectors must have same dimensions")
+        return sum([self[i]*other[i] for i in xrange(len(self))])
+    
+    def __mul__(self, other):
+        if not isinstance(other, Vector):
+            raise TypeError(
+                "unsupported operand type(s) for *: %s and %s" %
+                (type(self), type(other)))
+        return self.dot(other)
+
+    def __iter__(self):
+        for i in self._items:
+            yield i
+
+    def __getitem__(self, key):
+        return self._items[key]
+
+    def __len__(self):
+        return len(self._items)
+
+    def __repr__(self):
+        return "%s([%s])" % (
+            self.__class__.__name__,
+            ', '.join([str(i) for i in self]))
+
+    @classmethod
+    def new(cls, a, b):
+        """Make new vector pointing from ``a`` towards ``b`` and return new
+        vector."""
+        if len(a) != len(b):
+            raise TypeError("points must have same dimensions")
+        return Vector([b[i]-a[i] for i in xrange(len(a))])
 
 
 def asbool(value):
