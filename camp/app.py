@@ -4,10 +4,10 @@ import ConfigParser
 
 from hashlib import md5
 from camp.core import Image
+from camp.filter.classifier import Classifier
 from camp.filter.quantization import Quantizer
 from camp.filter.segmentation import Segmentizer
 from camp.filter.objrecognize import ObjectRecognitor
-from camp.filter.featuredetection import ImageFeatureDetector
 
 log = logging.getLogger(__name__)
 
@@ -80,10 +80,10 @@ class Application(object):
         
         # Create filter stack
         f = None
+        f = Classifier(next_filter=f, config=self.config('filter:Classifier'))
         f = ObjectRecognitor(next_filter=f, config=self.config('filter:ObjectRecognitor'))
         f = Segmentizer(next_filter=f, config=self.config('filter:Segmentizer'))
-        #f = ImageFeatureDetector(next_filter=f)
         f = Quantizer(next_filter=f, config=self.config('filter:Quantizer'))
-        
+
         # Execute filter stack
         f(source, storage={}, key=source.checksum()).save(dest)
