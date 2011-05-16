@@ -84,5 +84,5 @@ class OCRPluginBase(object):
         :param args: positional arguments tuple
         :param kwargs: keyword arguments dictionary"""
         clsname = ''.join([n.title() for n in name.split('_')])
-        module = __import__("camp.plugins.ocr.%s" % name, fromlist=[clsname])
+        module = __import__("%s.%s" % (__name__, name), fromlist=[clsname])
         return getattr(module, clsname)(*(args or tuple()), **(kwargs or {}))
