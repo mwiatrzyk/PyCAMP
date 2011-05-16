@@ -109,7 +109,7 @@ class Config(object):
     
     @classmethod
     def instance(cls, config=None):
-        """Create a singleton instance of Application class.
+        """Get or create an instance of this class.
         
         :param config: optional path to config file"""
         if not cls.__instance:
