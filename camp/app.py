@@ -4,10 +4,10 @@ import ConfigParser
 
 from hashlib import md5
 from camp.core import Image
-from camp.filter.classifier import Classifier
 from camp.filter.quantization import Quantizer
 from camp.filter.segmentation import Segmentizer
 from camp.filter.objrecognize import ObjectRecognitor
+from camp.filter.classification import Classifier
 
 log = logging.getLogger(__name__)
 
