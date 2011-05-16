@@ -10,8 +10,9 @@ class RectangleGenre(FigureGenre):
 
 class RectangleRecognitor(RecognitorPluginBase):
     
-    def test(self, current, remaining, processed, groups):
-        corners = self.extract_corners(current)
+    def test(self, segment):
+        # FIXME: this is simplified version of rectangle recognition algorithm
+        corners = self.extract_corners(segment)
         if len(corners) != 4:
             return 0
         corners = set(corners)

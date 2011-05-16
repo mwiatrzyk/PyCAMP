@@ -1,8 +1,11 @@
 import os
 
+from camp.core.containers import FigureGenre
+
 
 class RecognitorPluginBase(object):
-    """Base class for geometrical figures recognition plugins.
+    """Base class for simple geometrical figures recognition plugins. Simple
+    means that entire figure is enclosed in one segment.
     
     :attr __rp_priority__: priority value of plugin used to sort list of
         plugins by priorities in ascending order (lower values - higher
@@ -63,14 +66,14 @@ class RecognitorPluginBase(object):
             result.extend(self.extract_feature_points_by_mask(segment, m))
         return result
 
-    def test(self, current, remaining, processed, groups):
-        """Test if segment ``current`` is geometrical figure recognized by this
+    def test(self, segment):
+        """Test if segment ``segment`` is geometrical figure recognized by this
         class and return value in range 0 (absolutely something different) up
         to 1 (ideal figure).
         
-        :param current: currently being processed segment
+        :param segment: currently being processed segment
         :param remaining: set of remaining segments, can be used to search for
-            other parts of ``current`` - usage depends on concrete class. This
+            other parts of ``segment`` - usage depends on concrete class. This
             set can be freely modified by the method
         :param processed: initialized with empty set. Used to mark segments
             taken from ``remaining`` as already processed
@@ -97,7 +100,31 @@ class RecognitorPluginBase(object):
             module = __import__(
                 "camp.plugins.recognition.%s" % entry[:-3],
                 fromlist=[genre_classname, recognitor_classname])
-            result.append((
-                getattr(module, genre_classname),
-                getattr(module, recognitor_classname)))
+            GenreClass = getattr(module, genre_classname)
+            if not issubclass(GenreClass, FigureGenre):
+                raise TypeError(
+                    "%s from module %s: expecting subclass of %s" %
+                    (GenreClass, module, FigureGenre))
+            RecognitorClass = getattr(module, recognitor_classname)
+            if not issubclass(RecognitorClass, RecognitorPluginBase):
+                raise TypeError(
+                    "%s from module %s: expecting subclass of %s" %
+                    (RecognitorClass, module, RecognitorPluginBase))
+            result.append((GenreClass, RecognitorClass))
         return sorted(result, key=lambda x: x[1].__rp_priority__)
+
+
+# TODO: complex plugins (such as recognition of arrows) are not yet done
+class ComplexRecognitorPluginBase(RecognitorPluginBase):
+    """Base class for classes performing recognition of complex figures, i.e.
+    figures not entirely enclosed in one segment."""
+
+    @classmethod
+    def load_all(cls):
+        """Load all complex figures recognition plugins and return list of
+        ``(GenreClass, RecognitorClass)`` tuples."""
+        result = []
+        for GenreClass, RecognitorClass in super(ComplexRecognitorPluginBase, cls).load_all():
+            if issubclass(RecognitorClass, ComplexRecognitorPluginBase):
+                result.append((GenreClass, RecognitorClass))
+        return result
