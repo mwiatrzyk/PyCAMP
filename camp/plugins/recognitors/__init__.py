@@ -89,7 +89,7 @@ class RecognitorPluginBase(object):
         ``(GenreClass, RecognitorClass)`` tuples sorted by
         :attr:`__rp_priority__`."""
         result = []
-        for entry in os.listdir(os.path.join('camp', 'plugins', 'recognition')):
+        for entry in os.listdir(os.path.join(*tuple(__name__.split('.')))):
             if entry.startswith('_'):
                 continue
             if not entry.endswith('.py'):
@@ -98,7 +98,7 @@ class RecognitorPluginBase(object):
             genre_classname = "%sGenre" % prefix
             recognitor_classname = "%sRecognitor" % prefix
             module = __import__(
-                "camp.plugins.recognition.%s" % entry[:-3],
+                "%s.%s" % (__name__, entry[:-3]),
                 fromlist=[genre_classname, recognitor_classname])
             GenreClass = getattr(module, genre_classname)
             if not issubclass(GenreClass, FigureGenre):

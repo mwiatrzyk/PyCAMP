@@ -10,7 +10,7 @@ from camp.core import Image
 from camp.core.containers import SegmentGroup, Text
 from camp.core.colorspace import Convert
 from camp.plugins.ocr import OCRPluginBase
-from camp.plugins.recognition import RecognitorPluginBase, ComplexRecognitorPluginBase
+from camp.plugins.recognitors import RecognitorPluginBase, ComplexRecognitorPluginBase
 
 log = logging.getLogger(__name__)
 

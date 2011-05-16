@@ -1,7 +1,7 @@
 from camp.util import Vector
 from camp.clusterer.metric import euclidean
 from camp.core.containers import FigureGenre
-from camp.plugins.recognition import RecognitorPluginBase
+from camp.plugins.recognitors import RecognitorPluginBase
 
 
 class RectangleGenre(FigureGenre):
