@@ -1,6 +1,7 @@
 import os
 import math
 import logging
+import camp.exc as exc
 
 from subprocess import Popen, PIPE
 
@@ -9,7 +10,7 @@ from camp.core import Image
 from camp.core.containers import SegmentGroup, Text
 from camp.core.colorspace import Convert
 from camp.plugins.ocr import OCRPluginBase
-from camp.plugins.recognition import RecognitorPluginBase
+from camp.plugins.recognition import RecognitorPluginBase, ComplexRecognitorPluginBase
 
 log = logging.getLogger(__name__)
 
@@ -216,37 +217,36 @@ class ObjectRecognitor(BaseFilter):
                 graphical.add(s)
         log.info('...found %d text regions combined of total %d segments', len(text_regions), len(textual))
         log.info('...remaining non-text segments: %d', len(graphical))
-        
-        # Recognize graphical segments using object recognition plugins
-        figures = set()
+
+        # Search for complex graphical figures using recognition plugins
+        complex_figures = set()
+        plugins = ComplexRecognitorPluginBase.load_all()
+        if plugins:
+            pass  # TODO
+
+        # Recognize simple graphical figures using recognition plugins
+        simple_figures = set()
         plugins = RecognitorPluginBase.load_all()
-        processed = set()
+        if not plugins:
+            raise exc.CampError(
+                'no geometrical figures recognition plugins found')
         log.info('...performing geometric figure recognition process using %d recognitors', len(plugins))
         for g in graphical:
-            if g in processed:
-                continue
             result = []
             for Genre, Recognitor in plugins:
-                groups = set()
-                k = Recognitor().test(
-                    g, graphical.difference(set([g])), processed, groups)
-                if not k:
-                    continue
-                result.append((k, Genre, groups))
+                value = Recognitor().test(g)
+                if value:
+                    result.append((value, Genre))
             if not result:
                 continue
             winner = max(result, key=lambda x: x[0])
-            if winner[-1]:
-                for g_ in winner[-1]:
-                    g_.genre = winner[1]()
-                    figures.add(g_)
-            else:
-                g.genre = winner[1]()
-                figures.add(g)
-        log.info('...done. Found %d matching figures', len(figures))
+            g.genre = winner[1]()
+            simple_figures.add(g)
+        log.info('...done. Found %d matching simple figures', len(simple_figures))
         
         # Save results for next filter
         storage[self.__class__.__name__] = {
             'text': text_regions,
-            'figures': figures}
+            'simple_figures': simple_figures,
+            'complex_figures': complex_figures}
         return image
