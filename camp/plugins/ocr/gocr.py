@@ -5,6 +5,7 @@ from camp.plugins.ocr import OCRPluginBase
 
 class Gocr(OCRPluginBase):
     __ocr_command__ = 'djpeg -pnm -gray %(infile)s | gocr -o %(outfile)s -'
+    __ocr_priority__ = 1
 
     def create_infile(self, segment, angle=None):
         infile = os.path.join(self.working_dir, '%d_%d_%d_%d.jpg' % segment.bounds)

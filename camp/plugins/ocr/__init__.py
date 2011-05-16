@@ -1,14 +1,22 @@
 import os
 
 from subprocess import Popen, PIPE
+from camp.config import Config
 
 
 class OCRPluginBase(object):
     """Base class for external OCR plugins.
     
     :attr __ocr_command__: command used to execute external OCR tool. Can have
-        ``%(foo)s`` like substitutions"""
+        ``%(foo)s`` like substitutions
+    :attr __ocr_priority__: priority of this OCR plugin. Lower values means
+        higher priorities. This attribute is used to sort plugin classes to use
+        it in desired order
+    :attr __ocr_enabled__: setting to ``True`` will enable this OCR plugin,
+        setting to ``False`` will disable it"""
     __ocr_command__ = None
+    __ocr_priority__ = 0
+    __ocr_enabled__ = True
 
     def __init__(self, working_dir):
         """Create new instance of OCR recognitor.
@@ -75,14 +83,24 @@ class OCRPluginBase(object):
                 return result
 
     @classmethod
-    def load(cls, name, args=None, kwargs=None):
-        """Import plugin of given name, create its instance using provided args
-        and kwargs and return it.
-        
-        :param name: plugin name. If name is invalid, ImportError will be
-            raised
-        :param args: positional arguments tuple
-        :param kwargs: keyword arguments dictionary"""
-        clsname = ''.join([n.title() for n in name.split('_')])
-        module = __import__("%s.%s" % (__name__, name), fromlist=[clsname])
-        return getattr(module, clsname)(*(args or tuple()), **(kwargs or {}))
+    def load_all(cls):
+        """Load all available and enabled OCR plugin classes and return it as
+        list sorted by plugin priority."""
+        config = Config.instance()
+        result = []
+        for entry in os.listdir(os.path.join(*tuple(__name__.split('.')))):
+            if entry.startswith('_'):
+                continue
+            if not entry.endswith('.py'):
+                continue
+            class_name = ''.join([n.title() for n in entry[:-3].split('_')])
+            config_prefix = "plugins:ocr:%s" % class_name
+            module = __import__(
+                "%s.%s" % (__name__, entry[:-3]), fromlist=[class_name])
+            class_ = getattr(module, class_name)
+            if config("%s:enabled" % config_prefix, class_.__ocr_enabled__).asbool():
+                result.append((class_, config_prefix))
+        result = sorted(
+            result,
+            key=lambda x: config("%s:priority" % x[1], x[0].__ocr_priority__).asint())
+        return [r[0] for r in result]

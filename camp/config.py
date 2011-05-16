@@ -3,24 +3,50 @@ import ConfigParser
 
 
 class ScalarProxy(object):
+    """Wrapper on values read from config files. It contains methods for easily
+    conversion to desired types."""
     
     def __init__(self, value):
+        """Enpack ``value`` in ScalarProxy class instance.
+        
+        :param value: object of any type"""
         self._value = value
     
     @property
     def value(self):
+        """Enpacked value in original form."""
         return self._value
+    
+    def asbool(self):
+        """Return :param:`value` after conversion to bool."""
+        if isinstance(self.value, bool):
+            return self.value
+        if self.value in ('True', 'true', 'Yes', 'yes', 1):
+            return True
+        if self.value in ('False', 'false', 'No', 'no', 0):
+            return False
+        return bool(self.value)
+
+    def asint(self):
+        """Return :param:`value` after conversion to int."""
+        return int(self.value)
+
+    def asfloat(self):
+        """Return :param:`value` after conversion to float."""
+        return float(self.value)
 
     def __str__(self):
+        """Convert enpacked value to string."""
         return str(self._value)
 
     def __repr__(self):
+        """Get text representation of this object."""
         return "%s(type=%s, value=%s)" %\
             (self.__class__.__name__, type(self.value), str(self))
 
 
 class Config(object):
-    """Application's configuration placeholder."""
+    """Application's global configuration placeholder."""
     __instance = None
     
     def __init__(self, config=None):
@@ -42,14 +68,12 @@ class Config(object):
         parser = ConfigParser.ConfigParser()
         parser.read(configs)
         for s in parser.sections():
-            next_ = cfg
-            for k in s.split(':'):
-                next_ = next_.setdefault(k, {})
+            cfg[s] = {}
             for o in parser.options(s):
-                next_[o] = parser.get(s, o)
+                cfg[s][o] = parser.get(s, o)
         self._config = cfg
 
-    def config(self, path, strict=True):
+    def config(self, path, default=None, strict=False):
         """Get value matching ``path`` from loaded config file. Returned value
         can be either entire section or single value depending on ``path``
         argument.
@@ -57,28 +81,30 @@ class Config(object):
         :param path: config entry path, f.e. ``foo:bar:baz``
         :param strict: if True, KeyError is raised if ``path`` does not exist
             in config file"""
-        result = self._config
+        if not self._config:
+            return ScalarProxy(default)
+        splitted = path.rsplit(':', 1)
+        result = self._config.get(path)
         if not result:
-            return {}
-        for k in path.split(':'):
-            result = result.get(k)
+            result = self._config.get(splitted[0], {}).get(splitted[1])
             if not result:
                 if strict:
                     raise KeyError(path)
                 else:
-                    return {}
+                    return ScalarProxy(default)
         if isinstance(result, dict):
             return dict(result)
         else:
             return ScalarProxy(result)
 
-    def __call__(self, path, strict=True):
+    def __call__(self, path, default=None):
         """Allows to access config variables by calling Config instance like a
-        function."""
-        return self.config(path, strict=strict)
+        function. Returns ``default`` if path is invalid."""
+        return self.config(path, default=default, strict=False)
 
     def __getitem__(self, path):
-        """Allows to access config variables in dictionary way."""
+        """Allows to access config variables in dictionary way. Raises
+        ``KeyError`` for invalid paths."""
         return self.config(path, strict=True)
     
     @classmethod

@@ -44,10 +44,10 @@ class Application(object):
         
         # Create filter stack
         f = None
-        f = Classifier(next_filter=f, config=config('filter:Classifier'))
-        f = ObjectRecognitor(next_filter=f, config=config('filter:ObjectRecognitor'))
-        f = Segmentizer(next_filter=f, config=config('filter:Segmentizer'))
-        f = Quantizer(next_filter=f, config=config('filter:Quantizer'))
+        f = Classifier(next_filter=f)
+        f = ObjectRecognitor(next_filter=f)
+        f = Segmentizer(next_filter=f)
+        f = Quantizer(next_filter=f)
 
         # Execute filter stack
         f(source, storage={}, key=source.checksum()).save(dest)

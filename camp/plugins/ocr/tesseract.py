@@ -5,6 +5,7 @@ from camp.plugins.ocr import OCRPluginBase
 
 class Tesseract(OCRPluginBase):
     __ocr_command__ = 'tesseract %(infile)s %(outfile)s'
+    __ocr_priority__ = 0
 
     def create_infile(self, segment, angle=None):
         infile = os.path.join(self.working_dir, '%d_%d_%d_%d.tif' % segment.bounds)

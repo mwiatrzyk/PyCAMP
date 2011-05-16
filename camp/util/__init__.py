@@ -76,14 +76,3 @@ class Vector(object):
         if len(a) != len(b):
             raise TypeError("points must have same dimensions")
         return Vector([b[i]-a[i] for i in xrange(len(a))])
-
-
-def asbool(value):
-    """Convert given value to boolean True or False."""
-    if isinstance(value, bool):
-        return value
-    if value in ('True', 'true', 'Yes', 'yes', 1):
-        return True
-    if value in ('False', 'false', 'No', 'no', 0):
-        return False
-    return bool(value)

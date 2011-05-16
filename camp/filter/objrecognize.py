@@ -5,6 +5,7 @@ import camp.exc as exc
 
 from subprocess import Popen, PIPE
 
+from camp.config import Config
 from camp.filter import BaseFilter
 from camp.core import Image
 from camp.core.containers import SegmentGroup, Text
@@ -42,14 +43,17 @@ class ObjectRecognitor(BaseFilter):
 
     def extract_text(self, image, segments_):
         """Find and return group of segments composing textual information."""
-        ocr = self.config.get('ocr', self.__class__.__or_ocr__)
-        max_width = int(self.config.get('max_width', self.__class__.__or_max_width__))
-        max_height = int(self.config.get('max_height', self.__class__.__or_max_height__))
-        letter_delta = int(self.config.get('letter_delta', self.__class__.__or_letter_delta__))
-        word_delta = int(self.config.get('word_delta', self.__class__.__or_word_delta__))
-        min_word_area = int(self.config.get('min_word_area', self.__class__.__or_min_word_area__))
-        max_vertical_height = int(self.config.get('max_vertical_height', self.__class__.__or_max_vertical_height__))
-        min_vfactor = float(self.config.get('min_vfactor', self.__class__.__or_min_vfactor__))
+        config_ = Config.instance()
+        def config(param, default):
+            return config_("filter:%s:%s" % (self.__class__.__name__, param), default)
+
+        max_width = config('max_width', self.__class__.__or_max_width__).asint()
+        max_height = config('max_height', self.__class__.__or_max_height__).asint()
+        letter_delta = config('letter_delta', self.__class__.__or_letter_delta__).asint()
+        word_delta = config('word_delta', self.__class__.__or_word_delta__).asint()
+        min_word_area = config('min_word_area', self.__class__.__or_min_word_area__).asint()
+        max_vertical_height = config('max_vertical_height', self.__class__.__or_max_vertical_height__).asint()
+        min_vfactor = config('min_vfactor', self.__class__.__or_min_vfactor__).asfloat()
 
         def box_filter(segments):
             """Removes segments which bounds does not fit in given maximal
@@ -176,9 +180,8 @@ class ObjectRecognitor(BaseFilter):
         # not recognize text - another will try again)
         result = set()
         ocrs = []
-        for module in ocr.split(','):
-            ocrs.append(OCRPluginBase.load(module,
-                kwargs=dict(working_dir=os.path.join('data', 'ocr', ocr))))
+        for OCRClass in OCRPluginBase.load_all():
+            ocrs.append(OCRClass(working_dir=os.path.join('data', 'ocr', OCRClass.__name__)))
         for c in candidates:
             horizontal = True
             for o in ocrs:

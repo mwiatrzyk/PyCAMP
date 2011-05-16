@@ -3,7 +3,7 @@ import zlib
 import cPickle
 import logging
 
-from camp.util import asbool
+from camp.config import Config
 
 log = logging.getLogger(__name__)
 
@@ -16,18 +16,16 @@ class BaseFilter(object):
         caching for this filter while setting to ``False`` disables it"""
     __f_enable_caching__ = True
 
-    def __init__(self, next_filter=None, config=None):
+    def __init__(self, next_filter=None):
         """Create instance of new filter.
         
         :param next_filter: instance of filter to be executed once this filter
-            is executed
-        :param config: filter configuration dictionary. This parameter will be
-            set to public ``config`` property. If ommitted, ``config`` property
-            will be set to empty dict"""
+            is executed"""
+        super(BaseFilter, self).__init__()
         self.next_filter = next_filter
-        self.config = config or {}
-        self.enable_caching = asbool(self.config.get(
-            "enable_caching", self.__class__.__f_enable_caching__))
+        self.enable_caching = Config.instance().config(
+            "filter:%s:enable_caching" % self.__class__.__name__,
+            self.__class__.__f_enable_caching__).asbool()
 
     def __load_from_cache(self, data, storage=None, key=None):
         """Load results of this filter from cache for specified key.

@@ -1,6 +1,7 @@
 import logging
 import camp.exc as exc
 
+from camp.config import Config
 from camp.core import Image, ImageStat
 from camp.core.colorspace import Convert, Range
 from camp.util import Random
@@ -17,21 +18,17 @@ class Quantizer(BaseFilter):
     __q_threshold1__ = 0.1
     __q_threshold2__ = 5.0
 
-    def __init__(self, next_filter=None, config=None):
-        """Create new instance of Quantizer.
-        
-        :param next_filter: filter to be executed after successfull quantization
-        :param colorspace: colorspace in which color comparison will be
-            performed. There must be correct converter function defined in
-            :class:`Convert`
-        :param threshold1: used to ignore colors of pixels composing less than
-            given percentage of entire image
-        :param threshold2: maximal percentage difference between white color
-            and black color. If difference of two colors is less than given
-            threshold, colors are said to be equal"""
-        super(Quantizer, self).__init__(next_filter=next_filter, config=config)
-        self.colorspace = self.config.get('colorspace', self.__class__.__q_colorspace__).upper()
-        self.metric = self.config.get('metric', self.__class__.__q_metric__)
+    def __init__(self, next_filter=None):
+        super(Quantizer, self).__init__(next_filter=next_filter)
+
+        # Initialize config instance
+        config_ = Config.instance()
+        def config(param, default=None):
+            return config_("filter:%s:%s" % (self.__class__.__name__, param), default=default)
+
+        # Configure filter
+        self.colorspace = config('colorspace', self.__class__.__q_colorspace__).value.upper()
+        self.metric = config('metric', self.__class__.__q_metric__).value
         if not callable(self.metric):
             try:
                 module = __import__('camp.clusterer.metric', fromlist=[self.metric])
@@ -44,10 +41,8 @@ class Quantizer(BaseFilter):
             if self.colorspace != 'RGB' else lambda x: x
         self.__c_decoder = getattr(Convert, "%s2rgb" % self.colorspace.lower())\
             if self.colorspace != 'RGB' else lambda x: x
-        self.threshold1 = float(
-            self.config.get('threshold1', self.__class__.__q_threshold1__))
-        self.threshold2 = float(
-            self.config.get('threshold2', self.__class__.__q_threshold2__))
+        self.threshold1 = config('threshold1', self.__class__.__q_threshold1__).asfloat()
+        self.threshold2 = config('threshold2', self.__class__.__q_threshold2__).asfloat()
 
     def __get_samples(self, image):
         """Prepare and return list of samples for clusterer."""
