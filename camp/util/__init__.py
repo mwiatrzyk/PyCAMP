@@ -23,9 +23,12 @@ class Random(random.Random):
 
 
 class Vector(object):
+    """Class representing n-dimensional vectors."""
     
     def __init__(self, items):
-        """Create new vector."""
+        """Create new vector.
+        
+        :param items: sequence of vector's items"""
         self._items = tuple(items)
 
     def length(self):
@@ -44,6 +47,7 @@ class Vector(object):
         return sum([self[i]*other[i] for i in xrange(len(self))])
     
     def __mul__(self, other):
+        """Allows to calculate dot product with * operator."""
         if not isinstance(other, Vector):
             raise TypeError(
                 "unsupported operand type(s) for *: %s and %s" %
