@@ -8,7 +8,7 @@ from camp.config import Config
 from camp.filter.quantization import Quantizer
 from camp.filter.segmentation import Segmentizer
 from camp.filter.objrecognize import ObjectRecognitor
-from camp.filter.classification import Classifier
+from camp.filter.parsing import Parser
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class Application(object):
         
         # Create filter stack
         f = None
-        f = Classifier(next_filter=f)
+        f = Parser(next_filter=f)
         f = ObjectRecognitor(next_filter=f)
         f = Segmentizer(next_filter=f)
         f = Quantizer(next_filter=f)
