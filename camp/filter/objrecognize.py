@@ -200,10 +200,11 @@ class ObjectRecognitor(BaseFilter):
         return result
     
     def process(self, image, storage=None):
+        log.info('performing segment recognition step')
         segments = storage.get('Segmentizer', {}).get('segments')
         if not segments:
-            raise ValueError("no segments found: did you call Segmentizer filter first?")
-        log.info('performing segment recognition step')
+            raise exc.CampFilterError(
+                "no segments found: did you call Segmentizer filter first?")
 
         # Text recognition process
         log.info('...searching for text regions')

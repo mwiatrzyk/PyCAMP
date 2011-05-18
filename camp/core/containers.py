@@ -13,15 +13,28 @@ class BaseGenre(object):
 class HybridGenre(BaseGenre):
     """Genre composed with other genres."""
 
-    def __init__(self, composites=None):
-        self._composite = set(composites or [])
+    def __init__(self, **kwargs):
+        super(HybridGenre, self).__init__()
+        for k, v in kwargs.iteritems():
+            if not isinstance(v, BaseGenre):
+                raise TypeError(
+                    "%s: instance of %s expected, found %s" %
+                    (k, BaseGenre, type(v)))
+        self._subs = dict(kwargs)
+    
+    def __iter__(self):
+        for k in self._subs:
+            yield k
 
-    @property
-    def composite(self):
-        return self._composite
+    def __getitem__(self, key):
+        return self._subs[key]
+
+    def iteritems(self):
+        for k in self:
+            yield k, self[k]
 
     def __repr__(self):
-        subreprs = [repr(c) for c in self.composite]
+        subreprs = ["%s=%s" % (k, repr(v)) for k, v in self.iteritems()]
         return "%s(%s)" % (
             self.__class__.__name__,
             ', '.join(subreprs))
@@ -42,7 +55,8 @@ class Text(BaseGenre):
         self.horizontal = horizontal
 
     def __repr__(self):
-        return "%s(text='%s')" % (self.__class__.__name__, self.text)
+        return "%s(text='%s', horizontal=%s)" %\
+            (self.__class__.__name__, self.text, self.horizontal)
 
 
 class Segment(object):
@@ -233,12 +247,12 @@ class Segment(object):
 class SegmentGroup(Segment):
     """Groups two or more segments."""
     
-    def __init__(self, index):
+    def __init__(self, index, segments=None):
         """Create new segment group instance.
         
         :param index: index assigned to this segment group"""
         super(SegmentGroup, self).__init__(index=index, color=None)
-        self._segments = set()
+        self._segments = set(segments or [])
     
     @property
     def segments(self):
