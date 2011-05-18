@@ -69,7 +69,9 @@ class SimpleBarChartParser(ParserPluginBase):
         # Set of text barycenters (performance gain)
         self.text_barycenters = set(self.text_by_barycenter.keys())
         # List of all rectangles
-        self.rectangles = [s for s in self.simple_figures if isinstance(s.genre, RectangleGenre)]
+        self.rectangles = [
+            s for s in self.simple_figures
+            if isinstance(s.genre, RectangleGenre)]
         # Map of rectangle.bounds -> rectangle
         self.rect_by_bounds = dict([(r.bounds, r) for r in self.rectangles])
         # Set of rectangle bounds (performance gain)
@@ -87,7 +89,9 @@ class SimpleBarChartParser(ParserPluginBase):
             # Search for label candidates for current rectangle. Label
             # candidates are text regions whth horizontal centers lying just
             # below the rectangle (but not too far)
-            label_candidates = filter(lambda x: x[0]>k[0] and x[0]<k[2] and x[1]>k[3] and x[1]-k[3]<=50, self.text_barycenters)
+            label_candidates = filter(
+                lambda x: x[0]>k[0] and x[0]<k[2] and x[1]>k[3] and x[1]-k[3]<=50,
+                self.text_barycenters)
             if not label_candidates:
                 continue
             # Use nearest label candidate as bar label
