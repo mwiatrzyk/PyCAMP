@@ -76,3 +76,15 @@ class Vector(object):
         if len(a) != len(b):
             raise TypeError("points must have same dimensions")
         return Vector([b[i]-a[i] for i in xrange(len(a))])
+
+
+def asfloat(value):
+    if isinstance(value, float):
+        return value
+    elif isinstance(value, basestring):
+        try:
+            return float(value)
+        except ValueError:
+            return float(value.replace('O', '0').replace('l', '1').replace('S', '5').replace(',', '.'))
+    else:
+        return float(value)
