@@ -81,7 +81,9 @@ class ObjectRecognitor(BaseFilter):
                 else:
                     permanently_removed += 1
                     segments_.remove(s)  # Letter internal segments won't be used
-            log.info('...permanently removed segments after letter clear process: %d', permanently_removed)
+            log.debug(
+                'number of permanently removed segments after letter '
+                'clear process: %d', permanently_removed)
             return candidates
         
         def merge_segments(segments):
@@ -200,14 +202,14 @@ class ObjectRecognitor(BaseFilter):
         return result
     
     def process(self, image, storage=None):
-        log.info('performing segment recognition step')
+        log.info('running segment recognition process')
         segments = storage.get('Segmentizer', {}).get('segments')
         if not segments:
             raise exc.CampFilterError(
                 "no segments found: did you call Segmentizer filter first?")
 
         # Text recognition process
-        log.info('...searching for text regions')
+        log.debug('searching for text regions')
         text_regions = self.extract_text(image, segments)
         
         # Now split set of segment into two disjoined sets - one containing
@@ -219,10 +221,12 @@ class ObjectRecognitor(BaseFilter):
                 textual.add(s)
             else:
                 graphical.add(s)
-        log.info('...found %d text regions combined of total %d segments', len(text_regions), len(textual))
-        log.info('...remaining non-text segments: %d', len(graphical))
+        log.debug('found %d text regions combined of total %d segments',
+            len(text_regions), len(textual))
+        log.debug('remaining non-text segments: %d', len(graphical))
 
         # Search for complex graphical figures using recognition plugins
+        log.debug('searching for complex geometrical figures')
         complex_figures = set()
         plugins = ComplexRecognitorPluginBase.load_all()
         if plugins:
@@ -234,7 +238,9 @@ class ObjectRecognitor(BaseFilter):
         if not plugins:
             raise exc.CampError(
                 'no geometrical figures recognition plugins found')
-        log.info('...performing geometric figure recognition process using %d recognitors', len(plugins))
+        log.debug(
+            'performing geometric figure recognition process using '
+            'total number of %d recognitors', len(plugins))
         for g in graphical:
             result = []
             for Genre, Recognitor in plugins:
@@ -246,7 +252,7 @@ class ObjectRecognitor(BaseFilter):
             winner = max(result, key=lambda x: x[0])
             g.genre = winner[1]()
             simple_figures.add(g)
-        log.info('...done. Found %d matching simple figures', len(simple_figures))
+        log.debug('done. Found %d matching simple figures', len(simple_figures))
         
         # Save results for next filter
         storage[self.__class__.__name__] = {

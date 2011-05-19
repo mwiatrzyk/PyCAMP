@@ -1,7 +1,10 @@
 import os
+import logging
 
 from lxml import etree
 from camp.config import Config
+
+log = logging.getLogger(__name__)
 
 
 class ParsingResultBase(object):
@@ -53,6 +56,7 @@ class ParsingResultBase(object):
         """Save parsing results given by :meth:`tostring` in file.
         
         :param path: path to result file"""
+        log.info('writing output file: %s', path)
         fd = open(path, 'w')
         try:
             fd.write(self.tostring().encode('utf-8'))

@@ -58,7 +58,7 @@ class Segmentizer(BaseFilter):
         method are later used to create connection matrix."""
         # Neighbourhood generator (coordinates of pixels surrounding given
         # ``(x,y)`` pixel with itself)
-        log.info('...extracting segments from image')
+        log.debug('extracting segments from image')
         segments = []
         for color, coords in pixels.iteritems():
             while coords:
@@ -79,7 +79,7 @@ class Segmentizer(BaseFilter):
                 # Once stack is empty, new segment is extracted and should be
                 # added to the list of extracted segments
                 segments.append(segment)
-        log.info('...number of segments extracted: %d', len(segments))
+        log.debug('done. Number of segments extracted: %d', len(segments))
         return segments
 
     def __label_pixels(self, segments, image):
@@ -96,7 +96,7 @@ class Segmentizer(BaseFilter):
         """Fill ``neighbours`` property of each segment with weakrefs to
         neighbouring segments. This method will create undirected graph of
         segments."""
-        log.info('...creating list of adjacent segments for each segment')
+        log.debug('creating segments graph')
         #nseg = len(segments)
         sorted_segments = sorted(segments, key=lambda x: x.index)
         #print sorted_segments[0].index, sorted_segments[1].index
@@ -121,7 +121,7 @@ class Segmentizer(BaseFilter):
         return segments
 
     def process(self, image, storage=None):
-        log.info('performing segmentation step')
+        log.info('running segmentation process')
         # Create set of pixel coordinates for each color giving map of (color,
         # set_of_coords)
         pixels = self.__create_coordinate_sets(image)

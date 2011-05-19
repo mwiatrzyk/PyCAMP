@@ -277,27 +277,40 @@ class SimpleBarChartParser(ParserPluginBase):
             return ' '.join(title)
 
     def parse(self):
+        log.info('assuming that input image is simple bar chart image')
         text_used = set()
         # Extract all vertical bars
+        log.debug('searching for chart bars')
         bars = self.__extract_vertical_bars(text_used)
         if not bars:
+            log.info('no bars found: image is not a simple bar chart image')
             return
+        log.debug('done. Found total number of %d bars', len(bars))
         # Assign values to bars (if not yet assigned)
         if filter(lambda x: x.value is None, bars):
+            log.debug('determining conversion factor for bars: pixel height *'
+                ' factor -> real value')
             factor = self.__determine_height2value_factor(bars, text_used)
+            log.debug('done. Calculated factor: %1.3f', factor)
             if factor:
                 for b in bars:
                     if b.value is None:
                         b.value = b.bar.height * factor
         # Search for chart title
+        log.debug('searching for bar title text')
         title = self.__get_title(
             bars, self.text.difference(text_used), text_used)
+        log.debug('search results: %s', title)
         # Search for argument domain descriptor
+        log.debug('searching for argument (bar name) domain description')
         argument_domain = self.__get_argument_domain(
             bars, self.text.difference(text_used), text_used)
+        log.debug('search results: %s', argument_domain)
         # Search for value domain descriptor
+        log.debug('searching for value (bar height) domain descriptor')
         value_domain = self.__get_value_domain(
             bars, self.text.difference(text_used), text_used)
+        log.debug('search results: %s', value_domain)
         # Return results
         return SimpleBarChartResult(bars,
             argument_domain=argument_domain,

@@ -16,7 +16,7 @@ class Parser(BaseFilter):
     :module:`camp.plugins.parsers`."""
     
     def process(self, image, storage=None):
-        log.info('performing parsing step')
+        log.info('running parsing process')
 
         prev_results = storage.get('ObjectRecognitor')
         if not prev_results:
@@ -28,6 +28,7 @@ class Parser(BaseFilter):
         complex_figures = prev_results.get('complex_figures')
         
         for Parser in ParserPluginBase.load_all():
+            log.debug('executing parser: %s', Parser)
             parser = Parser(image, text, simple_figures, complex_figures)
             try:
                 result = parser.parse()

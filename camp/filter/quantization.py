@@ -116,16 +116,17 @@ class Quantizer(BaseFilter):
             raise TypeError("image: expecting %s, found %s" % (Image, type(image)))
         if image.mode.upper() != 'RGB':
             raise ValueError("image: expecting RGB image, found %s" % image.mode.upper())
-        log.info(
-            "performing quantization step with following settings: "
-            "colorspace=%s, metric=%s, t1=%s, t2=%s", self.colorspace,
-            self.metric.func_name, self.threshold1, self.threshold2)
+        log.info('running quantization process')
+        log.debug(
+            'quantization settings: colorspace=%s, metric=%s, t1=%s, t2=%s',
+            self.colorspace, self.metric.func_name, self.threshold1,
+            self.threshold2)
         # Get samples from the source image
         samples = self.__get_samples(image)
-        log.info("...number of colors before quantization: %d", len(samples))
+        log.debug('number of colors before quantization: %d', len(samples))
         # Choose initial clusters for the K-Means clusterer
         initial_clusters = self.choose_clusters(image)
-        log.info("...number of clusters found: %d", len(initial_clusters))
+        log.debug('number of colors after quantization: %d', len(initial_clusters))
         # Perform clustering and return clusters
         clusters = kmeans(samples, initial_clusters)
         # Create output image
