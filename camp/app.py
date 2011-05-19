@@ -3,6 +3,7 @@ import logging
 import ConfigParser
 
 from hashlib import md5
+from camp.util import timeit
 from camp.core import Image
 from camp.config import Config
 from camp.filter.quantization import Quantizer
@@ -31,7 +32,8 @@ class Application(object):
         if not cls.__instance:
             cls.__instance = Application(config=config)
         return cls.__instance
-
+    
+    @timeit
     def run(self, source, dest, **options):
         """Execute application and return exit code.
         

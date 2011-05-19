@@ -1,5 +1,9 @@
 import math
+import time
 import random
+import logging
+
+log = logging.getLogger(__name__)
 
 
 class Random(random.Random):
@@ -79,6 +83,7 @@ class Vector(object):
 
 
 def asfloat(value):
+    """Convert given value to float number and return it."""
     if isinstance(value, float):
         return value
     elif isinstance(value, basestring):
@@ -88,3 +93,16 @@ def asfloat(value):
             return float(value.replace('O', '0').replace('l', '1').replace('S', '5').replace(',', '.'))
     else:
         return float(value)
+
+
+def timeit(func):
+    """Calculates execution time (in seconds) of decorated function."""
+    def _timeit(*args, **kwargs):
+        log.debug('timing function %s', func)
+        start = time.time()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            log.debug("done for %s. Time: %1.3f sec",
+                func, time.time() - start)
+    return _timeit

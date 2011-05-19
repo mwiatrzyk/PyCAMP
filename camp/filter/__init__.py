@@ -3,6 +3,7 @@ import zlib
 import cPickle
 import logging
 
+from camp.util import timeit
 from camp.config import Config
 
 log = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ class BaseFilter(object):
             raise TypeError("storage: expecting dict or None, found %s (%s)" % (type(storage), storage))
         # Proxy for `process` method: loads from cache or writes data to cache
         # (if caching is enabled)
+        @timeit
         def process_proxy(data, storage=None):
             if key and self.enable_caching and not renew_cache:
                 if not isinstance(key, basestring):
