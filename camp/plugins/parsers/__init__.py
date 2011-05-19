@@ -89,6 +89,13 @@ class ParserPluginBase(object):
         to parse input image. Any other return value signalizes the need to
         proceed to next parser."""
         raise NotImplementedError()
+    
+    def config(self, key, default=None):
+        """Get config value named ``key`` for this parser. Return ``default``
+        if key does not exist in config."""
+        return Config.instance().config(
+            "plugins:parsers:%s:%s" % (self.__class__.__name__, key),
+            default=default)
 
     @classmethod
     def load_all(cls):

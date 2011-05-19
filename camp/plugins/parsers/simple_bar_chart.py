@@ -61,6 +61,36 @@ class SimpleBarChartResult(ParsingResultBase):
 
 
 class SimpleBarChartParser(ParserPluginBase):
+    """Plugin used to parse simple bar charts - a bar charts with vertical
+    bars, with both axis signed and with title.
+    
+    :attr __p_extract_vertical_bars_t1__: used while searching for chart bars.
+        If distance (along Y axis) between rectangle's "bottom" and text
+        region's "barycenter" is less or equal given threshold, rectangle is
+        said to be a chart bar and text region is said to be bar's label. This
+        threshold is used only against text regions that has centroid's X
+        coordinate between rectangle's "left" and "right" coordinates
+    :attr __p_determine_height2value_factor_t1__: used while searching for
+        column of bar values (the scale) to calculate factor used to convert
+        bar's height to real bar's value. This is used to ignore text regions
+        with centroids lying too far (along Y axis) from leftmost chart's bar
+        "bottom" coordinate
+    :attr __p_get_argument_domain_t1__: maximal distance (against Y coordinate)
+        between bar's "bottom" and text region candidate specifying description
+        of arguments domain
+    :attr __p_get_argument_domain_t2__: argument description text region
+        maximal allowed centrality factor (0 - ideally central, 0.5 - ideally
+        not central)
+    :attr __p_get_value_domain_t1__: same as previous option, but used while
+        seraching for value domain description text
+    :attr __p_get_title_t1__: maximal Y distance between text regions composing
+        the title of bar chart"""
+    __p_extract_vertical_bars_t1__ = 45
+    __p_determine_height2value_factor_t1__ = 10
+    __p_get_argument_domain_t1__ = 30
+    __p_get_argument_domain_t2__ = 0.3
+    __p_get_value_domain_t1__ = 0.4
+    __p_get_title_t1__ = 15
     
     def __init__(self, *args, **kwargs):
         super(SimpleBarChartParser, self).__init__(*args, **kwargs)
@@ -81,6 +111,9 @@ class SimpleBarChartParser(ParserPluginBase):
         """Extract, create and return list of :class:`VerticalBar` instances
         representing vertical bars of simple bar chart."""
         bars = []
+        t1 = self.config(
+            'extract_vertical_bars_t1',
+            self.__class__.__p_extract_vertical_bars_t1__).asint()
         # Sort rectangles by decreasing coordinate of rectanle bottom
         rect_by_bounds_sorted = sorted(
             self.rect_by_bounds.iterkeys(), key=lambda x: -x[3])
@@ -90,7 +123,7 @@ class SimpleBarChartParser(ParserPluginBase):
             # candidates are text regions whth horizontal centers lying just
             # below the rectangle (but not too far)
             label_candidates = filter(
-                lambda x: x[0]>k[0] and x[0]<k[2] and x[1]>k[3] and x[1]-k[3]<=50,
+                lambda x: x[0]>k[0] and x[0]<k[2] and x[1]>k[3] and x[1]-k[3]<=t1,
                 self.text_barycenters)
             if not label_candidates:
                 continue
@@ -112,11 +145,14 @@ class SimpleBarChartParser(ParserPluginBase):
         resulting factor by bar height. If factor is undeterminable this
         function returns 1 (bar height in pixels is numerically equal to real
         bar value)."""
+        t1 = self.config(
+            'determine_height2value_factor_t1',
+            self.__class__.__p_determine_height2value_factor_t1__).asint()
         # Leave only that text areas that are on the left side of leftmost bar
         leftmost_bar = min(bars, key=lambda x: x.left)
         left = leftmost_bar.left
         bottom = leftmost_bar.bottom
-        leftmost_text = filter(lambda x: x[0]<left and x[1]<bottom+10, self.text_barycenters)
+        leftmost_text = filter(lambda x: x[0]<left and x[1]<bottom+t1, self.text_barycenters)
         # If text area could not be found, return neutral factor (1)
         if not leftmost_text:
             return 1.0
@@ -161,17 +197,34 @@ class SimpleBarChartParser(ParserPluginBase):
     
     def __get_argument_domain(self, bars, text_remaining, text_used):
         """Search for textual description of arguments (bar names)."""
+        # Load thresholds from config or class attributes
+        t1 = self.config(
+            'get_argument_domain_t1',
+            self.__class__.__p_get_argument_domain_t1__).asint()
+        t2 = self.config(
+            'get_argument_domain_t2',
+            self.__class__.__p_get_argument_domain_t2__).asfloat()
+        # Find maximal bottom coordinate of all bars (this, however, should be
+        # rather similar for all bars)
         bottom = max(bars, key=lambda x: x.bottom).bottom
+        # Calculate central point
         center = sum([b.barycenter[0] for b in bars]) / len(bars)
-        candidates = filter(lambda x: bottom-x.bottom<20, text_remaining)
+        # Get list of text candidates for being a argument domain description
+        candidates = filter(lambda x: x.top-bottom<=t1 and x.top-bottom>0, text_remaining)
         if not candidates:
             return
+        # Calculate X spread of candidate text areas
         left = min(candidates, key=lambda x: x.left).left
         right = max(candidates, key=lambda x: x.right).right
+        # Proceed if bars central X point lies between previously calculated
+        # left and right
         if left < center and right > center:
+            # Calculate centrality factor of text areas
             f = (center - left) / float(right - left)
-            if abs(0.5 - f) < 0.2:
+            # Check the factor against configurable threshold
+            if abs(0.5 - f) < t2:
                 domain = []
+                # Collect text data
                 for c in sorted(candidates, key=lambda x: x.left):
                     domain.append(c.genre.text)
                     text_used.add(c)
@@ -179,18 +232,28 @@ class SimpleBarChartParser(ParserPluginBase):
     
     def __get_value_domain(self, bars, text_remaining, text_used):
         """Search for textual description of bar values."""
+        t1 = self.config(
+            'get_value_domain_t1',
+            self.__class__.__p_get_value_domain_t1__).asfloat()
+        # Use `text_used` because some text area needed here had already been
+        # processed in previous steps
         left = min(text_used, key=lambda x: x.left).left
+        # Get Y barycenter of highest bar
         center = max(bars, key=lambda x: x.bar.height).barycenter[1]
+        # Get vertical text areas lying on the left of leftmost text area used
         candidates = filter(
             lambda x: x.left<left and not x.genre.horizontal,
             text_remaining)
         if not candidates:
             return
+        # Further processing is the same as in :meth:`__get_argument_domain`,
+        # except the fact that here Y coordinate is used in calculations
+        # instead of X
         top = min(candidates, key=lambda x: x.top).top
         bottom = max(candidates, key=lambda x: x.bottom).bottom
         if top < center and bottom > center:
             f = (center - top) / float(bottom - top)
-            if abs(0.5 - f) < 0.4:
+            if abs(0.5 - f) < t1:
                 domain = []
                 for c in sorted(candidates, key=lambda x: -x.bottom):
                     domain.append(c.genre.text)
@@ -199,6 +262,7 @@ class SimpleBarChartParser(ParserPluginBase):
     
     def __get_title(self, bars, text_remaining, text_used):
         """Search for chart title."""
+        t1 = self.config('get_title_t1', self.__class__.__p_get_title_t1__).asint()
         center = self.image.width / 2
         candidates = sorted(
             filter(lambda x: x.left < center and x.right > center, text_remaining),
@@ -208,7 +272,7 @@ class SimpleBarChartParser(ParserPluginBase):
         else:
             title = [candidates[0].genre.text]
             for i in xrange(len(candidates)-1):
-                if candidates[i+1].top - candidates[i].bottom < 15:
+                if candidates[i+1].top - candidates[i].bottom < t1:
                     title.append(candidates[i+1].genre.text)
             return ' '.join(title)
 
