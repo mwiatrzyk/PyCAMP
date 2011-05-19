@@ -90,7 +90,12 @@ def asfloat(value):
         try:
             return float(value)
         except ValueError:
-            return float(value.replace('O', '0').replace('l', '1').replace('S', '5').replace(',', '.'))
+            return float(value.
+                replace('O', '0').
+                replace('l', '1').
+                replace('S', '5').
+                replace('I', '1').
+                replace(',', '.'))
     else:
         return float(value)
 
@@ -106,3 +111,18 @@ def timeit(func):
             log.debug("done for %s. Time: %1.3f sec",
                 func, time.time() - start)
     return _timeit
+
+
+def asunicode(value):
+    if isinstance(value, unicode):
+        return value
+    try:
+        return unicode(value)
+    except UnicodeDecodeError:
+        try:
+            return value.decode('utf-8')
+        except UnicodeDecodeError:
+            try:
+                return value.decode('iso-8859-1')
+            except UnicodeDecodeError:
+                raise

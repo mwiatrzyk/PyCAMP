@@ -2,7 +2,7 @@ import logging
 
 from lxml import etree
 
-from camp.util import asfloat
+from camp.util import asfloat, asunicode
 from camp.core.containers import SegmentGroup
 from camp.plugins.parsers import ParserPluginBase, ParsingResultBase
 from camp.plugins.recognitors.rectangle import RectangleGenre
@@ -34,9 +34,9 @@ class SimpleBarChartResult(ParsingResultBase):
     def __init__(self, bars, argument_domain=None, value_domain=None, title=None):
         super(SimpleBarChartResult, self).__init__()
         self.bars = bars
-        self.argument_domain = argument_domain or ''
-        self.value_domain = value_domain or ''
-        self.title = title or ''
+        self.argument_domain = asunicode(argument_domain or '')
+        self.value_domain = asunicode(value_domain or '')
+        self.title = asunicode(title or '')
 
     def tostring(self):
         attributes = etree.SubElement(self.content, 'Attributes')
@@ -267,6 +267,8 @@ class SimpleBarChartParser(ParserPluginBase):
         candidates = sorted(
             filter(lambda x: x.left < center and x.right > center, text_remaining),
             key=lambda x: x.top)
+        if not candidates:
+            return
         if len(candidates) == 1:
             return candidates[0].genre.text
         else:

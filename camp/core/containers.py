@@ -1,4 +1,5 @@
 from camp.core import Image
+from camp.util import asunicode
 
 
 class BaseGenre(object):
@@ -51,7 +52,7 @@ class Text(BaseGenre):
         """Create new Text genre instance.
         
         :param text: text found by OCR software"""
-        self.text = text
+        self.text = asunicode(text)
         self.horizontal = horizontal
 
     def __repr__(self):
