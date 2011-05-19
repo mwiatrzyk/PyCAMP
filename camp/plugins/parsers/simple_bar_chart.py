@@ -77,7 +77,7 @@ class SimpleBarChartParser(ParserPluginBase):
         # Set of rectangle bounds (performance gain)
         self.rect_bounds = set(self.rect_by_bounds.keys())
 
-    def __extract_vertical_bars(self):
+    def __extract_vertical_bars(self, text_used):
         """Extract, create and return list of :class:`VerticalBar` instances
         representing vertical bars of simple bar chart."""
         bars = []
@@ -103,9 +103,11 @@ class SimpleBarChartParser(ParserPluginBase):
             bars.append(bar)
             # Make label not to be usable by another bars
             self.text_barycenters.remove(label)
+            # Notify that text region is in use
+            text_used.add(self.text_by_barycenter[label])
         return bars
 
-    def __determine_height2value_factor(self, bars):
+    def __determine_height2value_factor(self, bars, text_used):
         """Determine factor used to calculate bar value by multiplying
         resulting factor by bar height. If factor is undeterminable this
         function returns 1 (bar height in pixels is numerically equal to real
@@ -144,6 +146,8 @@ class SimpleBarChartParser(ParserPluginBase):
                 scale.append((
                     asfloat(r.genre.text),
                     abs(r.barycenter[1]-startpoint)))
+                # Notify that text region is in use
+                text_used.add(r)
             except ValueError, e:
                 log.warning(e)
                 continue
@@ -155,17 +159,83 @@ class SimpleBarChartParser(ParserPluginBase):
         height = sum([s[1] for s in scale]) / float(len(scale))
         return value / height
     
+    def __get_argument_domain(self, bars, text_remaining, text_used):
+        """Search for textual description of arguments (bar names)."""
+        bottom = max(bars, key=lambda x: x.bottom).bottom
+        center = sum([b.barycenter[0] for b in bars]) / len(bars)
+        candidates = filter(lambda x: bottom-x.bottom<20, text_remaining)
+        if not candidates:
+            return
+        left = min(candidates, key=lambda x: x.left).left
+        right = max(candidates, key=lambda x: x.right).right
+        if left < center and right > center:
+            f = (center - left) / float(right - left)
+            if abs(0.5 - f) < 0.2:
+                domain = []
+                for c in sorted(candidates, key=lambda x: x.left):
+                    domain.append(c.genre.text)
+                    text_used.add(c)
+                return ' '.join(domain)
+    
+    def __get_value_domain(self, bars, text_remaining, text_used):
+        """Search for textual description of bar values."""
+        left = min(text_used, key=lambda x: x.left).left
+        center = max(bars, key=lambda x: x.bar.height).barycenter[1]
+        candidates = filter(
+            lambda x: x.left<left and not x.genre.horizontal,
+            text_remaining)
+        if not candidates:
+            return
+        top = min(candidates, key=lambda x: x.top).top
+        bottom = max(candidates, key=lambda x: x.bottom).bottom
+        if top < center and bottom > center:
+            f = (center - top) / float(bottom - top)
+            if abs(0.5 - f) < 0.4:
+                domain = []
+                for c in sorted(candidates, key=lambda x: -x.bottom):
+                    domain.append(c.genre.text)
+                    text_used.add(c)
+                return ' '.join(domain)
+    
+    def __get_title(self, bars, text_remaining, text_used):
+        """Search for chart title."""
+        center = self.image.width / 2
+        candidates = sorted(
+            filter(lambda x: x.left < center and x.right > center, text_remaining),
+            key=lambda x: x.top)
+        if len(candidates) == 1:
+            return candidates[0].genre.text
+        else:
+            title = [candidates[0].genre.text]
+            for i in xrange(len(candidates)-1):
+                if candidates[i+1].top - candidates[i].bottom < 15:
+                    title.append(candidates[i+1].genre.text)
+            return ' '.join(title)
+
     def parse(self):
+        text_used = set()
         # Extract all vertical bars
-        bars = self.__extract_vertical_bars()
+        bars = self.__extract_vertical_bars(text_used)
         if not bars:
             return
         # Assign values to bars (if not yet assigned)
         if filter(lambda x: x.value is None, bars):
-            factor = self.__determine_height2value_factor(bars)
+            factor = self.__determine_height2value_factor(bars, text_used)
             if factor:
                 for b in bars:
                     if b.value is None:
                         b.value = b.bar.height * factor
+        # Search for chart title
+        title = self.__get_title(
+            bars, self.text.difference(text_used), text_used)
+        # Search for argument domain descriptor
+        argument_domain = self.__get_argument_domain(
+            bars, self.text.difference(text_used), text_used)
+        # Search for value domain descriptor
+        value_domain = self.__get_value_domain(
+            bars, self.text.difference(text_used), text_used)
         # Return results
-        return SimpleBarChartResult(bars)
+        return SimpleBarChartResult(bars,
+            argument_domain=argument_domain,
+            value_domain=value_domain,
+            title=title)

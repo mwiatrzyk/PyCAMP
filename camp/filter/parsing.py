@@ -28,7 +28,7 @@ class Parser(BaseFilter):
         complex_figures = prev_results.get('complex_figures')
         
         for Parser in ParserPluginBase.load_all():
-            parser = Parser(text, simple_figures, complex_figures)
+            parser = Parser(image, text, simple_figures, complex_figures)
             try:
                 result = parser.parse()
             except Exception:

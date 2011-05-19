@@ -70,13 +70,15 @@ class ParserPluginBase(object):
     __pp_enabled__ = True
     __pp_priority__ = 0
     
-    def __init__(self, text, simple_figures, complex_figures):
+    def __init__(self, image, text, simple_figures, complex_figures):
         """Create new instance of this parser plugin.
         
+        :param image: input image, possibly after some sort of processing
         :param text: set of text regions extracted from input image
         :param simple_figures: set of simple figures found in input image
         :param complex_figures: set of complex figures found in input image"""
         super(ParserPluginBase, self).__init__()
+        self.image = image
         self.text = text
         self.simple_figures = simple_figures
         self.complex_figures = complex_figures
