@@ -8,8 +8,11 @@ from optparse import OptionParser
 from camp.app import Application
 
 parser = OptionParser(usage='Usage: %prog [options] [input] [output]')
-parser.add_option('-c', '--config', dest='config', help='path to config file to be used instead the default one', metavar='PATH')
-parser.add_option('-v', '--verbose', dest='verbose', help='enable verbose mode', default=False, action='store_true')
+parser.add_option('-c', '--config', dest='config',
+    help='path to config file to be used instead the default one',
+    metavar='PATH')
+parser.add_option('-v', '--verbose', dest='verbose', 
+    help='enable verbose mode', default=False, action='store_true')
 
 if len(sys.argv) == 1:
     parser.print_help()
