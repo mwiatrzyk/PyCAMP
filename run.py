@@ -9,7 +9,8 @@ from camp.app import Application
 
 parser = OptionParser(usage='Usage: %prog [options] [input] [output]')
 parser.add_option('-c', '--config', dest='config',
-    help='path to config file to be used instead the default one',
+    help='path to config file to be used. If this option is not given, '
+    'configuration from "./doc/config_default.ini" will be used',
     metavar='PATH')
 parser.add_option('-v', '--verbose', dest='verbose', 
     help='enable verbose mode', default=False, action='store_true')
@@ -30,6 +31,7 @@ logging.basicConfig(
 try:
     logging.info('PyCAMP is starting')
     status = Application.instance(options.config).run(*args)
+    logging.info('PyCAMP is finishing with status code %d', status)
     sys.exit(status)
 except Exception:
     logging.exception('an error occured:')
