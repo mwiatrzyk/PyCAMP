@@ -76,21 +76,12 @@ class Config(object):
         config_files = [self.__class__.__cfg_default_config_file__]
         if config:
             config_files.append(config)
-        self.__load_config(config_files)
-        if argv:
-            if not isinstance(argv, dict):
-                raise TypeError("argv: expecting dictionary")
-            self._config['argv'] = argv
-
-    def __load_config(self, configs):
-        """Loads entire config file by searching for files listed in
-        :param:`configs` and opening the first one that is found.
-        
-        :param configs: list of config file path names"""
+        # Create config parser
         cfg = {}
         vars_ = {'rootdir': self.__class__.ROOT_DIR}
         parser = ConfigParser.ConfigParser()
-        parser.read(configs)
+        parser.read(config_files)
+        # Read entire config into dictionary
         for s in parser.sections():
             if s == 'argv':
                 raise ValueError("'argv' is restricted and cannot be used "
@@ -98,7 +89,13 @@ class Config(object):
             cfg[s] = {}
             for o in parser.options(s):
                 cfg[s][o] = parser.get(s, o, vars=vars_)
+        # Add command line args to config file
+        if argv:
+            if not isinstance(argv, dict):
+                raise TypeError("argv: expecting dictionary")
+            cfg['argv'] = argv
         self._config = cfg
+        self._parser = parser
 
     def config(self, path, default=None, strict=False):
         """Get value matching ``path`` from loaded config file. Returned value
@@ -123,6 +120,14 @@ class Config(object):
             return dict(result)
         else:
             return ScalarProxy(result)
+
+    def save(self, path):
+        """Write config to given config file."""
+        fd = open(path, 'wb')
+        try:
+            self._parser.write(fd)
+        finally:
+            fd.close()
 
     def __call__(self, path, default=None):
         """Allows to access config variables by calling Config instance like a
