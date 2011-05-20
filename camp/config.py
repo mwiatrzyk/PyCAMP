@@ -46,18 +46,37 @@ class ScalarProxy(object):
 
 
 class Config(object):
-    """Application's global configuration placeholder."""
+    """Application's global configuration placeholder.
+    
+    :attr ROOT_DIR: specify relative or absolute path to project's root
+        directory (the directory of run.py file)
+    :attr __cfg_default_config_file__: path to default configuration file. This
+        file will be used if no other configuration file path was given"""
+
+    # Constant attributes (shouldn't be changed in subclass)
+    ROOT_DIR = '.'
+
+    # Changeable attributes (can be changed in subclass)
+    __cfg_default_config_file__ = os.path.join('doc', 'config_default.ini')
+
+    # Private attributes
     __instance = None
     
-    def __init__(self, config=None):
+    def __init__(self, config=None, argv=None):
         """Create new instance of Config class.
         
-        :param config: name of config file to be used instead of default one"""
+        :param config: path to configuration file. If not specified, default
+            one will be used
+        :param argv: dictionary with command line parameters"""
         super(Config, self).__init__()
-        config_files = [
-            config or 'config.ini',
-            os.path.join('doc', 'config_default.ini')]
+        config_files = [self.__class__.__cfg_default_config_file__]
+        if config:
+            config_files.append(config)
         self.__load_config(config_files)
+        if argv:
+            if not isinstance(argv, dict):
+                raise TypeError("argv: expecting dictionary")
+            self._config['argv'] = argv
 
     def __load_config(self, configs):
         """Loads entire config file by searching for files listed in
@@ -65,12 +84,16 @@ class Config(object):
         
         :param configs: list of config file path names"""
         cfg = {}
+        vars_ = {'rootdir': self.__class__.ROOT_DIR}
         parser = ConfigParser.ConfigParser()
         parser.read(configs)
         for s in parser.sections():
+            if s == 'argv':
+                raise ValueError("'argv' is restricted and cannot be used "
+                    "as section name")
             cfg[s] = {}
             for o in parser.options(s):
-                cfg[s][o] = parser.get(s, o)
+                cfg[s][o] = parser.get(s, o, vars=vars_)
         self._config = cfg
 
     def config(self, path, default=None, strict=False):
@@ -108,10 +131,10 @@ class Config(object):
         return self.config(path, strict=True)
     
     @classmethod
-    def instance(cls, config=None):
+    def instance(cls, config=None, argv=None):
         """Get or create an instance of this class.
         
         :param config: optional path to config file"""
         if not cls.__instance:
-            cls.__instance = Config(config=config)
+            cls.__instance = Config(config=config, argv=argv)
         return cls.__instance

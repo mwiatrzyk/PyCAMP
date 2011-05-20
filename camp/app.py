@@ -15,34 +15,36 @@ log = logging.getLogger(__name__)
 
 
 class Application(object):
-    __instance = None
+    """The bootstrap class."""
     
-    def __init__(self, config=None):
+    def __init__(self, infile, outfile, options=None):
         """Create new instance of Application class.
         
-        :param config: name of config file to be used instead of default one"""
+        :param infile: input file path
+        :param outfile: output file path
+        :param options: options instance returned by OptionParser's
+            ``parse_args`` method"""
         super(Application, self).__init__()
-        Config.instance(config=config)
+        if not infile:
+            raise ValueError('infile: value is missing')
+        if not outfile:
+            raise ValueError('outfile: value is missing')
+        self.infile = infile
+        self.outfile = outfile
+        if options:
+            argv = {
+                'infile': infile,  # Input file path
+                'outfile': outfile,  # Output file path
+                'timeit': options.timeit,  # Enable or disable `timeit` decorator
+                'dump': options.dump  # Enable or disable `dump` decorator
+            }
+            Config.instance(config=options.config, argv=argv)
 
-    @classmethod
-    def instance(cls, config=None):
-        """Create a singleton instance of Application class.
-        
-        :param config: optional path to config file"""
-        if not cls.__instance:
-            cls.__instance = Application(config=config)
-        return cls.__instance
-    
     @timeit
-    def run(self, source, dest, **options):
-        """Execute application and return exit code.
-        
-        :param source: source image file path
-        :param dest: destination data file path"""
-        config = Config.instance()
-
+    def run(self):
+        """Execute application and return exit code."""
         # Load source image
-        source = Image.load(source).convert('RGB')
+        source = Image.load(self.infile).convert('RGB')
         
         # Create filter stack
         f = None
@@ -52,4 +54,6 @@ class Application(object):
         f = Quantizer(next_filter=f)
 
         # Execute filter stack
-        f(source, storage={}, key=source.checksum()).save(dest)
+        f(source, storage={}, key=source.checksum()).save(self.outfile)
+
+        return 0
