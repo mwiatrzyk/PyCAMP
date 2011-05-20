@@ -233,6 +233,10 @@ class Segment(object):
         image.pixels[self.barycenter] = color
 
     def display_border(self, image, color=None):
+        """Display segment's border pixels on given image.
+        
+        :param image: reference to image object
+        :param color: color of resulting border pixels"""
         if not color:
             color = (255, 255, 0)
         p = image.pixels
