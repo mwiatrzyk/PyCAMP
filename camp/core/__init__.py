@@ -2,7 +2,7 @@
 
 from hashlib import md5
 
-from PIL import Image as PILImage, ImageOps, ImageDraw
+from PIL import Image as PILImage, ImageDraw, ImageChops as PILImageChops
 from PIL import ImageStat as PILImageStat
 
 
@@ -220,3 +220,13 @@ class ImageStat(object):
     def __repr__(self):
         return "<%s(ncolors=%s)>" %\
             (self.__class__.__name__, self.ncolors)
+
+
+class ImageChops(object):
+    """Arithmetical image operations."""
+
+    @classmethod
+    def difference(cls, a, b):
+        """Return image that is absolute difference of given two images ``a``
+        and ``b``."""
+        return Image(PILImageChops.difference(a.backend, b.backend))
