@@ -152,9 +152,11 @@ def dump(dumper):
                     'main:dump_dir',
                     os.path.join(Config.ROOT_DIR, 'data', 'dump')).asstring()
                 infile = os.path.basename(cfg.config('argv:infile').asstring())
-                dump_dir = os.path.join(dump_dir, infile)
+                dump_dir = os.path.join(dump_dir, infile, dumper.func_name)
                 if not os.path.isdir(dump_dir):
                     os.makedirs(dump_dir)
+                cfg.save(os.path.join(dump_dir, 'config.ini'))
+                log.debug('executing dump function: %s', dumper)
                 dumper(result, args=args, kwargs=kwargs, dump_dir=dump_dir)
             except:
                 log.exception('error while performing dump using function %s:', dumper)
