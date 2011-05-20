@@ -1,15 +1,22 @@
+import os
 import logging
 import camp.exc as exc
 
 from camp.config import Config
 from camp.core import Image, ImageStat
 from camp.core.colorspace import Convert, Range
-from camp.util import Random
+from camp.util import Random, dump
 from camp.filter import BaseFilter
 from camp.clusterer.metric import euclidean
 from camp.clusterer.kmeans import kmeans, Cluster
 
 log = logging.getLogger(__name__)
+
+
+def _dump(result, args=None, kwargs=None, dump_dir=None):
+    result_file = os.path.join(dump_dir, 'after-quantization.png')
+    log.info('writing quantization dump file: %s', result_file)
+    result.save(result_file)
 
 
 class Quantizer(BaseFilter):
@@ -111,6 +118,7 @@ class Quantizer(BaseFilter):
             clusters.append(Cluster(dim, metric=metric, centroid=tuple(centroid)))
         return clusters
     
+    @dump(_dump)
     def process(self, image, storage=None):
         if not isinstance(image, Image):
             raise TypeError("image: expecting %s, found %s" % (Image, type(image)))

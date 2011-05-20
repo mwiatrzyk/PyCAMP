@@ -1,7 +1,10 @@
+import os
 import math
 import time
 import random
 import logging
+
+from camp.config import Config
 
 log = logging.getLogger(__name__)
 
@@ -100,20 +103,9 @@ def asfloat(value):
         return float(value)
 
 
-def timeit(func):
-    """Calculates execution time (in seconds) of decorated function."""
-    def _timeit(*args, **kwargs):
-        log.debug('timing function %s', func)
-        start = time.time()
-        try:
-            return func(*args, **kwargs)
-        finally:
-            log.debug("done for %s. Time: %1.3f sec",
-                func, time.time() - start)
-    return _timeit
-
-
 def asunicode(value):
+    """Convert given value to unicode by trying different encodings and
+    catching UnicodeDecodeError exceptions."""
     if isinstance(value, unicode):
         return value
     try:
@@ -126,3 +118,47 @@ def asunicode(value):
                 return value.decode('iso-8859-1')
             except UnicodeDecodeError:
                 raise
+
+
+def timeit(func):
+    """Calculates execution time (in seconds) of decorated function."""
+    def _timeit(*args, **kwargs):
+        if not Config.instance().config('argv:timeit', False).asbool():
+            return func(*args, **kwargs)
+        log.debug('timing function %s', func)
+        start = time.time()
+        try:
+            return func(*args, **kwargs)
+        finally:
+            log.debug("done for %s. Time: %1.3f sec",
+                func, time.time() - start)
+    return _timeit
+
+
+def dump(dumper):
+    """Decorator used to dump partial results for debugging purposes.
+    
+    :param dumper: dump function taking 3 arguments: the result of decorated
+        function, the args of decorated function and the kwargs of decorated
+        function"""
+    def _dump(func):
+        def __dump(*args, **kwargs):
+            if not Config.instance().config('argv:dump', False).asbool():
+                return func(*args, **kwargs)
+            result = func(*args, **kwargs)
+            try:
+                cfg = Config.instance()
+                dump_dir = cfg.config(
+                    'main:dump_dir',
+                    os.path.join(Config.ROOT_DIR, 'data', 'dump')).asstring()
+                infile = os.path.basename(cfg.config('argv:infile').asstring())
+                dump_dir = os.path.join(dump_dir, infile)
+                if not os.path.isdir(dump_dir):
+                    os.makedirs(dump_dir)
+                dumper(result, args=args, kwargs=kwargs, dump_dir=dump_dir)
+            except:
+                log.exception('error while performing dump using function %s:', dumper)
+            return result
+        __dump.func_name = func.func_name
+        return __dump
+    return _dump

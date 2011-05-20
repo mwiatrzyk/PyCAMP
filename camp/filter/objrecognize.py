@@ -5,15 +5,50 @@ import camp.exc as exc
 
 from subprocess import Popen, PIPE
 
+from camp.util import dump
 from camp.config import Config
 from camp.filter import BaseFilter
-from camp.core import Image
+from camp.core import Image, ImageChops
 from camp.core.containers import SegmentGroup, Text
 from camp.core.colorspace import Convert
 from camp.plugins.ocr import OCRPluginBase
 from camp.plugins.recognitors import RecognitorPluginBase, ComplexRecognitorPluginBase
 
 log = logging.getLogger(__name__)
+
+
+def _dump(result, args=None, kwargs=None, dump_dir=None):
+    data = kwargs['storage']['ObjectRecognitor']
+
+    def create_image():
+        return Image.create('RGB', result.width, result.height,
+            background=(255, 255, 255))
+    
+    def display(s, image):
+        s.display(image, color=(0, 0, 0))
+        s.display_bounds(image, color=(0, 0, 255))
+
+    # Dump text region candidates
+    result_file = os.path.join(dump_dir, 'text-candidates.png')
+    image1 = create_image()
+    for t in data['text_candidates']:
+        display(t, image1)
+    log.info('writing file containing dump of text candidates: %s', result_file)
+    image1.save(result_file)
+
+    # Dump recognized text regions
+    result_file = os.path.join(dump_dir, 'text-recognized.png')
+    image2 = create_image()
+    for t in data['text']:
+        display(t, image2)
+    log.info('writing file containing dump of recognized text: %s', result_file)
+    image2.save(result_file)
+
+    # Dump difference text candidates and recognized text regions
+    result_file = os.path.join(dump_dir, 'text-cand-rec-difference.png')
+    log.info('writing file containing difference between recognized '
+        'and not recognized text regions: %s', result_file)
+    ImageChops.difference(image1, image2).save(result_file)
 
 
 class ObjectRecognitor(BaseFilter):
@@ -199,8 +234,9 @@ class ObjectRecognitor(BaseFilter):
                 c.genre = Text(text=text, horizontal=horizontal)
                 result.add(c)
 
-        return result
+        return result, candidates
     
+    @dump(_dump)
     def process(self, image, storage=None):
         log.info('running segment recognition process')
         segments = storage.get('Segmentizer', {}).get('segments')
@@ -210,7 +246,7 @@ class ObjectRecognitor(BaseFilter):
 
         # Text recognition process
         log.debug('searching for text regions')
-        text_regions = self.extract_text(image, segments)
+        text, text_candidates = self.extract_text(image, segments)
         
         # Now split set of segment into two disjoined sets - one containing
         # textual segments, and one containing graphical segments
@@ -222,7 +258,7 @@ class ObjectRecognitor(BaseFilter):
             else:
                 graphical.add(s)
         log.debug('found %d text regions combined of total %d segments',
-            len(text_regions), len(textual))
+            len(text), len(textual))
         log.debug('remaining non-text segments: %d', len(graphical))
 
         # Search for complex graphical figures using recognition plugins
@@ -256,7 +292,8 @@ class ObjectRecognitor(BaseFilter):
         
         # Save results for next filter
         storage[self.__class__.__name__] = {
-            'text': text_regions,
+            'text': text,
+            'text_candidates': text_candidates,
             'simple_figures': simple_figures,
             'complex_figures': complex_figures}
         return image
