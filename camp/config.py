@@ -35,6 +35,10 @@ class ScalarProxy(object):
         """Return :param:`value` after conversion to float."""
         return float(self.value)
 
+    def asstring(self):
+        """Return :param:`value` after conversion to string."""
+        return str(self)
+
     def __str__(self):
         """Convert enpacked value to string."""
         return str(self._value)
