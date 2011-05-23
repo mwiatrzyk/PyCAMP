@@ -139,6 +139,10 @@ class Image(object):
                     dp[x, y] = 0
         return dest
 
+    def copy(self):
+        """Return new Image that is a copy of current one."""
+        return Image(self.backend.copy())
+
     def save(self, filename):
         """Save current image in given file.
         
