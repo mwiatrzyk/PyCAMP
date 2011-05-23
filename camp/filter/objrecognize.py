@@ -21,31 +21,21 @@ def _extract_text_dump(result, args=None, kwargs=None, dump_dir=None):
     image = args[1]
     text, text_candidates = result
 
-    def create_image():
-        return Image.create('RGB', image.width, image.height,
-            background=(255, 255, 255))
-    
-    def display(s, image):
-        s.display(image, color=(0, 0, 0))
-        s.display_bounds(image, color=(0, 0, 255))
-
     # Dump text region candidates
-    result_file = os.path.join(dump_dir, 'candidates.png')
-    image1 = create_image()
+    image1 = image.copy()
     for t in text_candidates:
-        display(t, image1)
-    image1.save(result_file)
+        t.display_bounds(image1, color=(0, 0, 255))
+    image1.save(os.path.join(dump_dir, 'candidates.png'))
 
     # Dump recognized text regions
-    result_file = os.path.join(dump_dir, 'recognized.png')
-    image2 = create_image()
+    image2 = image.copy()
     for t in text:
-        display(t, image2)
-    image2.save(result_file)
+        t.display_bounds(image2, color=(0, 0, 255))
+    image2.save(os.path.join(dump_dir, 'recognized.png'))
 
     # Dump difference text candidates and recognized text regions
-    result_file = os.path.join(dump_dir, 'difference.png')
-    ImageChops.difference(image1, image2).save(result_file)
+    ImageChops.difference(image1, image2).save(
+        os.path.join(dump_dir, 'difference.png'))
 
 
 class ObjectRecognitor(BaseFilter):
