@@ -85,6 +85,26 @@ class Vector(object):
         return Vector([b[i]-a[i] for i in xrange(len(a))])
 
 
+class BaseDumper(object):
+    """Class to be used by decorator :func:`dump` instead of simple function.
+    It allows to check what was changed by the decorated function."""
+    
+    def __precall__(self, args=None, kwargs=None):
+        """Called before call to decorated function."""
+
+    def __postcall__(self, result, args=None, kwargs=None):
+        """Called after call to decorated function."""
+
+    def __call__(self, result, args=None, kwargs=None, dump_dir=None):
+        """This method works in the same way as function dumpers."""
+        raise NotImplementedError()
+
+    @property
+    def func_name(self):
+        """Name of "function"."""
+        return self.__class__.__name__
+
+
 def asfloat(value):
     """Convert given value to float number and return it."""
     if isinstance(value, float):
@@ -145,21 +165,36 @@ def dump(dumper):
         def __dump(*args, **kwargs):
             if not Config.instance().config('argv:dump', False).asbool():
                 return func(*args, **kwargs)
+            if isinstance(dumper, type) and issubclass(dumper, BaseDumper):
+                dumper_ = dumper()
+            else:
+                dumper_ = dumper
+            tmp = isinstance(dumper_, BaseDumper)
+            if tmp:
+                try:
+                    dumper_.__precall__(args=args, kwargs=kwargs)
+                except:
+                    log.exception('__precall__ of %s failed:', dumper_)
             result = func(*args, **kwargs)
+            if tmp:
+                try:
+                    dumper_.__postcall__(result, args=args, kwargs=kwargs)
+                except:
+                    log.exception('__postcall__ of %s failed:', dumper_)
             try:
                 cfg = Config.instance()
                 dump_dir = cfg.config(
                     'main:dump_dir',
                     os.path.join(Config.ROOT_DIR, 'data', 'dump')).asstring()
                 infile = os.path.basename(cfg.config('argv:infile').asstring())
-                dump_dir = os.path.join(dump_dir, infile, dumper.func_name)
+                dump_dir = os.path.join(dump_dir, infile, dumper_.func_name)
                 if not os.path.isdir(dump_dir):
                     os.makedirs(dump_dir)
                 cfg.save(os.path.join(dump_dir, 'config.ini'))
-                log.debug('executing dump function: %s', dumper)
-                dumper(result, args=args, kwargs=kwargs, dump_dir=dump_dir)
+                log.debug('executing dump function: %s', dumper_)
+                dumper_(result, args=args, kwargs=kwargs, dump_dir=dump_dir)
             except:
-                log.exception('error while performing dump using function %s:', dumper)
+                log.exception('error while performing dump using function %s:', dumper_)
             return result
         __dump.func_name = func.func_name
         return __dump
