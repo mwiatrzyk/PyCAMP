@@ -1,13 +1,79 @@
+import os
 import logging
 
 from lxml import etree
 
-from camp.util import asfloat, asunicode
+from camp.util import asfloat, asunicode, dump, BaseDumper
+from camp.core import Image
 from camp.core.containers import SegmentGroup
 from camp.plugins.parsers import ParserPluginBase, ParsingResultBase
 from camp.plugins.recognitors.rectangle import RectangleGenre
 
 log = logging.getLogger(__name__)
+
+
+def _dump_vertical_bars(result, args=None, kwargs=None, dump_dir=None):
+    image = args[0].image.copy()
+    labels = SegmentGroup(None)
+    bars = SegmentGroup(None)
+    for b in result:
+        labels.segments.add(b.label)
+        bars.segments.add(b.bar)
+    labels.display_bounds(image, color=(0, 0, 255))
+    bars.display_bounds(image, color=(0, 0, 255))
+    image.save(os.path.join(dump_dir, 'bars-with-labels.png'))
+
+
+class _TextUsedDumper(BaseDumper):
+    
+    def __precall__(self, args=None, kwargs=None):
+        self.text_used = set(args[-1])
+
+    def __postcall__(self, result, args=None, kwargs=None):
+        self.text_used = args[-1].difference(self.text_used)
+
+
+class _DumpYAxisLables(_TextUsedDumper):
+
+    def __call__(self, result, args=None, kwargs=None, dump_dir=None):
+        image = args[0].image.copy()
+        labels = SegmentGroup(None)
+        labels.segments.update(self.text_used)
+        labels.display_bounds(image, color=(0, 0, 255))
+        image.save(os.path.join(dump_dir, 'y-axis-labels.png'))
+
+
+class _DumpArgumentDomain(_TextUsedDumper):
+    
+    def __call__(self, result, args=None, kwargs=None, dump_dir=None):
+        image = args[0].image.copy()
+        domain = SegmentGroup(None)
+        domain.segments.update(self.text_used)
+        if domain.segments:
+            domain.display_bounds(image, color=(0, 0, 255))
+            image.save(os.path.join(dump_dir, 'argument-domain.png'))
+
+
+class _DumpValueDomain(_TextUsedDumper):
+    
+    def __call__(self, result, args=None, kwargs=None, dump_dir=None):
+        image = args[0].image.copy()
+        domain = SegmentGroup(None)
+        domain.segments.update(self.text_used)
+        if domain.segments:
+            domain.display_bounds(image, color=(0, 0, 255))
+            image.save(os.path.join(dump_dir, 'value-domain.png'))
+
+
+class _DumpTitle(_TextUsedDumper):
+    
+    def __call__(self, result, args=None, kwargs=None, dump_dir=None):
+        image = args[0].image.copy()
+        domain = SegmentGroup(None)
+        domain.segments.update(self.text_used)
+        if domain.segments:
+            domain.display_bounds(image, color=(0, 0, 255))
+            image.save(os.path.join(dump_dir, 'title.png'))
 
 
 class VerticalBar(SegmentGroup):
@@ -106,7 +172,8 @@ class SimpleBarChartParser(ParserPluginBase):
         self.rect_by_bounds = dict([(r.bounds, r) for r in self.rectangles])
         # Set of rectangle bounds (performance gain)
         self.rect_bounds = set(self.rect_by_bounds.keys())
-
+    
+    @dump(_dump_vertical_bars)
     def __extract_vertical_bars(self, text_used):
         """Extract, create and return list of :class:`VerticalBar` instances
         representing vertical bars of simple bar chart."""
@@ -139,7 +206,8 @@ class SimpleBarChartParser(ParserPluginBase):
             # Notify that text region is in use
             text_used.add(self.text_by_barycenter[label])
         return bars
-
+    
+    @dump(_DumpYAxisLables)
     def __determine_height2value_factor(self, bars, text_used):
         """Determine factor used to calculate bar value by multiplying
         resulting factor by bar height. If factor is undeterminable this
@@ -175,6 +243,7 @@ class SimpleBarChartParser(ParserPluginBase):
                 # If there is `0` in the Y axis values use its barycenter as
                 # startpoint for more accurate results
                 if tmp == 0.0:
+                    text_used.add(r)
                     startpoint = r.barycenter[1]
                 if not tmp:
                     continue
@@ -195,6 +264,7 @@ class SimpleBarChartParser(ParserPluginBase):
         height = sum([s[1] for s in scale]) / float(len(scale))
         return value / height
     
+    @dump(_DumpArgumentDomain)
     def __get_argument_domain(self, bars, text_remaining, text_used):
         """Search for textual description of arguments (bar names)."""
         # Load thresholds from config or class attributes
@@ -230,6 +300,7 @@ class SimpleBarChartParser(ParserPluginBase):
                     text_used.add(c)
                 return ' '.join(domain)
     
+    @dump(_DumpValueDomain)
     def __get_value_domain(self, bars, text_remaining, text_used):
         """Search for textual description of bar values."""
         t1 = self.config(
@@ -260,6 +331,7 @@ class SimpleBarChartParser(ParserPluginBase):
                     text_used.add(c)
                 return ' '.join(domain)
     
+    @dump(_DumpTitle)
     def __get_title(self, bars, text_remaining, text_used):
         """Search for chart title."""
         t1 = self.config('get_title_t1', self.__class__.__p_get_title_t1__).asint()
@@ -270,12 +342,15 @@ class SimpleBarChartParser(ParserPluginBase):
         if not candidates:
             return
         if len(candidates) == 1:
+            text_used.add(candidates[0])
             return candidates[0].genre.text
         else:
             title = [candidates[0].genre.text]
+            text_used.add(candidates[0])
             for i in xrange(len(candidates)-1):
                 if candidates[i+1].top - candidates[i].bottom < t1:
                     title.append(candidates[i+1].genre.text)
+                    text_used.add(candidates[i+1])
             return ' '.join(title)
 
     def parse(self):
