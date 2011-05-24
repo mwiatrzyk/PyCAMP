@@ -1,5 +1,8 @@
 import os
+import logging
 import ConfigParser
+
+log = logging.getLogger(__name__)
 
 
 class ScalarProxy(object):

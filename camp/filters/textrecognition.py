@@ -1,18 +1,13 @@
 import os
-import math
 import logging
 import camp.exc as exc
 
-from subprocess import Popen, PIPE
-
 from camp.util import dump
 from camp.config import Config
-from camp.filter import BaseFilter
-from camp.core import Image, ImageChops
+from camp.filters import BaseFilter
+from camp.core import ImageChops
 from camp.core.containers import SegmentGroup, Text
-from camp.core.colorspace import Convert
 from camp.plugins.ocr import OCRPluginBase
-from camp.plugins.recognitors import RecognitorPluginBase, ComplexRecognitorPluginBase
 
 log = logging.getLogger(__name__)
 
@@ -38,45 +33,40 @@ def _extract_text_dump(result, args=None, kwargs=None, dump_dir=None):
         os.path.join(dump_dir, 'difference.png'))
 
 
-class ObjectRecognitor(BaseFilter):
-    """Filter used to split segments into textual and graphical segments and to
-    recognize both text and graphical elements.
+class TextRecognitor(BaseFilter):
+    """Filter used to split set of segments into two distinct sets: one
+    containing textual segments, and one containing graphical (non-textual)
+    segments.
 
-    :attr __or_ocr__: name of plugin used to perform OCR recognition step
-    :attr __or_max_width__: maximal width of potential letter
-    :attr __or_max_height__: maximal height of potential letter
-    :attr __or_letter_delta__: maximal distance between two letters
-    :attr __or_word_delta__: maximal distance between two words
-    :attr __or_min_word_area__: minimal area of pixels composing word (used
+    :attr __f_max_width__: maximal width of potential letter
+    :attr __f_max_height__: maximal height of potential letter
+    :attr __f_letter_delta__: maximal distance between two letters
+    :attr __f_word_delta__: maximal distance between two words
+    :attr __f_min_word_area__: minimal area of pixels composing word (used
         to remove minor segments before OCR procedure)
-    :attr __or_max_vertical_height__: maximal height of vertical letters. Used
+    :attr __f_max_vertical_height__: maximal height of vertical letters. Used
         to ignore already found horizontal text segments while searching for
         vertical text segments
-    :attr __or_min_vfactor__: minimal value of segment's ``vfactor`` property
+    :attr __f_min_vfactor__: minimal value of segment's ``vfactor`` property
         that still makes the segment's orientation vertical"""
-    __or_ocr__ = 'tesseract'
-    __or_max_width__ = 40
-    __or_max_height__ = 30
-    __or_letter_delta__ = 6
-    __or_word_delta__ = 12
-    __or_min_word_area__ = 20
-    __or_max_vertical_height__ = 30
-    __or_min_vfactor__ = 2.5
+    __f_max_width__ = 40
+    __f_max_height__ = 30
+    __f_letter_delta__ = 6
+    __f_word_delta__ = 12
+    __f_min_word_area__ = 20
+    __f_max_vertical_height__ = 30
+    __f_min_vfactor__ = 2.5
     
     @dump(_extract_text_dump)
     def extract_text(self, image, segments_):
         """Find and return group of segments composing textual information."""
-        config_ = Config.instance()
-        def config(param, default):
-            return config_("filter:%s:%s" % (self.__class__.__name__, param), default)
-
-        max_width = config('max_width', self.__class__.__or_max_width__).asint()
-        max_height = config('max_height', self.__class__.__or_max_height__).asint()
-        letter_delta = config('letter_delta', self.__class__.__or_letter_delta__).asint()
-        word_delta = config('word_delta', self.__class__.__or_word_delta__).asint()
-        min_word_area = config('min_word_area', self.__class__.__or_min_word_area__).asint()
-        max_vertical_height = config('max_vertical_height', self.__class__.__or_max_vertical_height__).asint()
-        min_vfactor = config('min_vfactor', self.__class__.__or_min_vfactor__).asfloat()
+        max_width = self.config('max_width').asint()
+        max_height = self.config('max_height').asint()
+        letter_delta = self.config('letter_delta').asint()
+        word_delta = self.config('word_delta').asint()
+        min_word_area = self.config('min_word_area').asint()
+        max_vertical_height = self.config('max_vertical_height').asint()
+        min_vfactor = self.config('min_vfactor').asfloat()
 
         def box_filter(segments):
             """Removes segments which bounds does not fit in given maximal
@@ -223,14 +213,14 @@ class ObjectRecognitor(BaseFilter):
                 result.add(c)
 
         return result, candidates
-    
-    def process(self, image, storage=None):
-        log.info('running segment recognition process')
-        segments = storage.get('Segmentizer', {}).get('segments')
-        if not segments:
-            raise exc.CampFilterError(
-                "no segments found: did you call Segmentizer filter first?")
 
+    def process(self, image, storage=None):
+        log.info('splitting segments into set of textual and non-textual segments')
+        try:
+            segments = storage['Segmentizer']['segments']
+        except KeyError, e:
+            raise exc.CampFilterError("missing in 'storage': %s" % e)
+        
         # Text recognition process
         log.debug('searching for text regions')
         text, text_candidates = self.extract_text(image, segments)
@@ -244,43 +234,12 @@ class ObjectRecognitor(BaseFilter):
                 textual.add(s)
             else:
                 graphical.add(s)
-        log.debug('found %d text regions combined of total %d segments',
-            len(text), len(textual))
+        log.debug('found %d text regions combined of total %d segments', len(text), len(textual))
         log.debug('remaining non-text segments: %d', len(graphical))
 
-        # Search for complex graphical figures using recognition plugins
-        log.debug('searching for complex geometrical figures')
-        complex_figures = set()
-        plugins = ComplexRecognitorPluginBase.load_all()
-        if plugins:
-            pass  # TODO
-
-        # Recognize simple graphical figures using recognition plugins
-        simple_figures = set()
-        plugins = RecognitorPluginBase.load_all()
-        if not plugins:
-            raise exc.CampError(
-                'no geometrical figures recognition plugins found')
-        log.debug(
-            'performing geometric figure recognition process using '
-            'total number of %d recognitors', len(plugins))
-        for g in graphical:
-            result = []
-            for Genre, Recognitor in plugins:
-                value = Recognitor().test(g)
-                if value:
-                    result.append((value, Genre))
-            if not result:
-                continue
-            winner = max(result, key=lambda x: x[0])
-            g.genre = winner[1]()
-            simple_figures.add(g)
-        log.debug('done. Found %d matching simple figures', len(simple_figures))
-        
         # Save results for next filter
         storage[self.__class__.__name__] = {
             'text': text,
             'text_candidates': text_candidates,
-            'simple_figures': simple_figures,
-            'complex_figures': complex_figures}
+            'graphical': graphical}
         return image

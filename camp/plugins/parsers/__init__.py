@@ -68,11 +68,11 @@ class ParserPluginBase(object):
     """Base class for plugins performing parsing of input data after the input
     had been preprocessed.
     
-    :attr __pp_enabled__: enable or disable plugin
-    :attr __pp_priority__: plugin's priority (the lowest value - the highes
+    :attr __p_enabled__: enable or disable plugin
+    :attr __p_priority__: plugin's priority (the lowest value - the highes
         priority)"""
-    __pp_enabled__ = True
-    __pp_priority__ = 0
+    __p_enabled__ = True
+    __p_priority__ = 0
     
     def __init__(self, image, text, simple_figures, complex_figures):
         """Create new instance of this parser plugin.
@@ -95,11 +95,12 @@ class ParserPluginBase(object):
         raise NotImplementedError()
     
     def config(self, key, default=None):
-        """Get config value named ``key`` for this parser. Return ``default``
-        if key does not exist in config."""
+        """Get value of configuration parameter named ``key``. If ``default``
+        evaluates to ``False``, class attribute with prefix ``__p_`` and
+        postfix ``__`` is used (if exists)."""
+        key_ = "plugins:parsers:%s:%s" % (self.__class__.__name__, key)
         return Config.instance().config(
-            "plugins:parsers:%s:%s" % (self.__class__.__name__, key),
-            default=default)
+            key_, default or getattr(self.__class__, "__p_%s__" % key, None))
 
     @classmethod
     def load_all(cls):
@@ -118,9 +119,9 @@ class ParserPluginBase(object):
             module = __import__(
                 "%s.%s" % (__name__, entry[:-3]), fromlist=[class_name])
             class_ = getattr(module, class_name)
-            if config("%s:enabled" % config_prefix, class_.__pp_enabled__).asbool():
+            if config("%s:enabled" % config_prefix, class_.__p_enabled__).asbool():
                 result.append((class_, config_prefix))
         result = sorted(
             result,
-            key=lambda x: config("%s:priority" % x[1], x[0].__pp_priority__).asint())
+            key=lambda x: config("%s:priority" % x[1], x[0].__p_priority__).asint())
         return [r[0] for r in result]

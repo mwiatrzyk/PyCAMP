@@ -6,7 +6,7 @@ from camp.config import Config
 from camp.core import Image, ImageStat
 from camp.core.colorspace import Convert, Range
 from camp.util import Random, dump
-from camp.filter import BaseFilter
+from camp.filters import BaseFilter
 from camp.clusterer.metric import euclidean
 from camp.clusterer.kmeans import kmeans, Cluster
 
@@ -19,22 +19,15 @@ def _quantizer_dump(result, args=None, kwargs=None, dump_dir=None):
 
 
 class Quantizer(BaseFilter):
-    __q_colorspace__ = 'LAB'
-    __q_metric__ = 'euclidean'
-    __q_threshold1__ = 0.1
-    __q_threshold2__ = 5.0
+    __f_colorspace__ = 'LAB'
+    __f_metric__ = 'euclidean'
+    __f_threshold1__ = 0.1
+    __f_threshold2__ = 5.0
 
     def __init__(self, next_filter=None):
         super(Quantizer, self).__init__(next_filter=next_filter)
-
-        # Initialize config instance
-        config_ = Config.instance()
-        def config(param, default=None):
-            return config_("filter:%s:%s" % (self.__class__.__name__, param), default=default)
-
-        # Configure filter
-        self.colorspace = config('colorspace', self.__class__.__q_colorspace__).value.upper()
-        self.metric = config('metric', self.__class__.__q_metric__).value
+        self.colorspace = self.config('colorspace').value.upper()
+        self.metric = self.config('metric').value
         if not callable(self.metric):
             try:
                 module = __import__('camp.clusterer.metric', fromlist=[self.metric])
@@ -47,8 +40,8 @@ class Quantizer(BaseFilter):
             if self.colorspace != 'RGB' else lambda x: x
         self.__c_decoder = getattr(Convert, "%s2rgb" % self.colorspace.lower())\
             if self.colorspace != 'RGB' else lambda x: x
-        self.threshold1 = config('threshold1', self.__class__.__q_threshold1__).asfloat()
-        self.threshold2 = config('threshold2', self.__class__.__q_threshold2__).asfloat()
+        self.threshold1 = self.config('threshold1').asfloat()
+        self.threshold2 = self.config('threshold2').asfloat()
 
     def __get_samples(self, image):
         """Prepare and return list of samples for clusterer."""

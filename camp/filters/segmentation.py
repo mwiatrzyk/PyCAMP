@@ -3,7 +3,7 @@ import logging
 
 from camp.core import Image
 from camp.core.containers import Segment
-from camp.filter import BaseFilter
+from camp.filters import BaseFilter
 
 log = logging.getLogger(__name__)
 

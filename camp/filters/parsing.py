@@ -3,7 +3,7 @@ import camp.exc as exc
 
 from camp.core import Image
 from camp.util import asfloat
-from camp.filter import BaseFilter
+from camp.filters import BaseFilter
 from camp.core.containers import SegmentGroup, BaseGenre
 from camp.plugins.recognitors.rectangle import RectangleGenre
 from camp.plugins.parsers import ParserPluginBase, ParsingResultBase
@@ -17,15 +17,12 @@ class Parser(BaseFilter):
     
     def process(self, image, storage=None):
         log.info('running parsing process')
-
-        prev_results = storage.get('ObjectRecognitor')
-        if not prev_results:
-            raise exc.CampFilterError(
-                "ObjectRecognitor filter must be called first")
-
-        text = prev_results.get('text')
-        simple_figures = prev_results.get('simple_figures')
-        complex_figures = prev_results.get('complex_figures')
+        try:
+            text = storage['TextRecognitor']['text']
+            simple_figures = storage['FigureRecognitor']['simple_figures']
+            complex_figures = storage['FigureRecognitor']['complex_figures']
+        except KeyError, e:
+            raise exc.CampFilterError("missing in 'storage': %s" % e)
         
         for Parser in ParserPluginBase.load_all():
             log.debug('executing parser: %s', Parser)

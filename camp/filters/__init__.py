@@ -15,7 +15,7 @@ class BaseFilter(object):
     :attr __f_enable_caching__: default value of ``enable_caching`` property
         used if not specified via config file. Setting to ``True`` enables
         caching for this filter while setting to ``False`` disables it"""
-    __f_enable_caching__ = True
+    __f_enable_caching__ = False
 
     def __init__(self, next_filter=None):
         """Create instance of new filter.
@@ -24,9 +24,7 @@ class BaseFilter(object):
             is executed"""
         super(BaseFilter, self).__init__()
         self.next_filter = next_filter
-        self.enable_caching = Config.instance().config(
-            "filter:%s:enable_caching" % self.__class__.__name__,
-            self.__class__.__f_enable_caching__).asbool()
+        self.enable_caching = self.config('enable_caching').asbool()
 
     def __load_from_cache(self, data, storage=None, key=None):
         """Load results of this filter from cache for specified key.
@@ -95,6 +93,14 @@ class BaseFilter(object):
                 result, storage=storage, key=key, renew_cache=not from_cache)
         else:
             return result
+    
+    def config(self, key, default=None):
+        """Get value of configuration parameter named ``key``. If ``default``
+        evaluates to ``False``, class attribute with prefix ``__f_`` and
+        postfix ``__`` is used (if exists)."""
+        key_ = "filters:%s:%s" % (self.__class__.__name__, key)
+        return Config.instance().config(
+            key_, default or getattr(self.__class__, "__f_%s__" % key, None))
 
     def process(self, data, storage=None):
         """Body of this filter to be implemented in subclass.

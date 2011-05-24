@@ -178,9 +178,7 @@ class SimpleBarChartParser(ParserPluginBase):
         """Extract, create and return list of :class:`VerticalBar` instances
         representing vertical bars of simple bar chart."""
         bars = []
-        t1 = self.config(
-            'extract_vertical_bars_t1',
-            self.__class__.__p_extract_vertical_bars_t1__).asint()
+        t1 = self.config('extract_vertical_bars_t1').asint()
         # Sort rectangles by decreasing coordinate of rectanle bottom
         rect_by_bounds_sorted = sorted(
             self.rect_by_bounds.iterkeys(), key=lambda x: -x[3])
@@ -213,9 +211,7 @@ class SimpleBarChartParser(ParserPluginBase):
         resulting factor by bar height. If factor is undeterminable this
         function returns 1 (bar height in pixels is numerically equal to real
         bar value)."""
-        t1 = self.config(
-            'determine_height2value_factor_t1',
-            self.__class__.__p_determine_height2value_factor_t1__).asint()
+        t1 = self.config('determine_height2value_factor_t1').asint()
         # Leave only that text areas that are on the left side of leftmost bar
         leftmost_bar = min(bars, key=lambda x: x.left)
         left = leftmost_bar.left
@@ -268,12 +264,8 @@ class SimpleBarChartParser(ParserPluginBase):
     def __get_argument_domain(self, bars, text_remaining, text_used):
         """Search for textual description of arguments (bar names)."""
         # Load thresholds from config or class attributes
-        t1 = self.config(
-            'get_argument_domain_t1',
-            self.__class__.__p_get_argument_domain_t1__).asint()
-        t2 = self.config(
-            'get_argument_domain_t2',
-            self.__class__.__p_get_argument_domain_t2__).asfloat()
+        t1 = self.config('get_argument_domain_t1').asint()
+        t2 = self.config('get_argument_domain_t2').asfloat()
         # Find maximal bottom coordinate of all bars (this, however, should be
         # rather similar for all bars)
         bottom = max(bars, key=lambda x: x.bottom).bottom
@@ -303,9 +295,7 @@ class SimpleBarChartParser(ParserPluginBase):
     @dump(_DumpValueDomain)
     def __get_value_domain(self, bars, text_remaining, text_used):
         """Search for textual description of bar values."""
-        t1 = self.config(
-            'get_value_domain_t1',
-            self.__class__.__p_get_value_domain_t1__).asfloat()
+        t1 = self.config('get_value_domain_t1').asfloat()
         # Use `text_used` because some text area needed here had already been
         # processed in previous steps
         left = min(text_used, key=lambda x: x.left).left
@@ -334,7 +324,7 @@ class SimpleBarChartParser(ParserPluginBase):
     @dump(_DumpTitle)
     def __get_title(self, bars, text_remaining, text_used):
         """Search for chart title."""
-        t1 = self.config('get_title_t1', self.__class__.__p_get_title_t1__).asint()
+        t1 = self.config('get_title_t1').asint()
         center = self.image.width / 2
         candidates = sorted(
             filter(lambda x: x.left < center and x.right > center, text_remaining),

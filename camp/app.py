@@ -6,10 +6,11 @@ from hashlib import md5
 from camp.util import timeit
 from camp.core import Image
 from camp.config import Config
-from camp.filter.quantization import Quantizer
-from camp.filter.segmentation import Segmentizer
-from camp.filter.objrecognize import ObjectRecognitor
-from camp.filter.parsing import Parser
+from camp.filters.quantization import Quantizer
+from camp.filters.segmentation import Segmentizer
+from camp.filters.figurerecognition import FigureRecognitor
+from camp.filters.textrecognition import TextRecognitor
+from camp.filters.parsing import Parser
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +50,8 @@ class Application(object):
         # Create filter stack
         f = None
         f = Parser(next_filter=f)
-        f = ObjectRecognitor(next_filter=f)
+        f = FigureRecognitor(next_filter=f)
+        f = TextRecognitor(next_filter=f)
         f = Segmentizer(next_filter=f)
         f = Quantizer(next_filter=f)
 

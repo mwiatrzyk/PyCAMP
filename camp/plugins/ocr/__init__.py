@@ -82,6 +82,14 @@ class OCRPluginBase(object):
             if self.recognized(result):
                 return result
 
+    def config(self, key, default=None):
+        """Get value of configuration parameter named ``key``. If ``default``
+        evaluates to ``False``, class attribute with prefix ``__ocr_`` and
+        postfix ``__`` is used (if exists)."""
+        key_ = "plugins:ocr:%s:%s" % (self.__class__.__name__, key)
+        return Config.instance().config(
+            key_, default or getattr(self.__class__, "__ocr_%s__" % key, None))
+
     @classmethod
     def load_all(cls):
         """Load all available and enabled OCR plugin classes and return it as
