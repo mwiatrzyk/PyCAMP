@@ -136,6 +136,12 @@ class SimpleBarChartParser(ParserPluginBase):
         said to be a chart bar and text region is said to be bar's label. This
         threshold is used only against text regions that has centroid's X
         coordinate between rectangle's "left" and "right" coordinates
+    :attr __p_extract_vertical_bars_t2__: allowed difference measured in pixels
+        between "bottom" of two neighboring bars
+    :attr __p_extract_vertical_bars_t3__: allowed difference (in pixels)
+        between "width" of two neighboring bars
+    :attr __p_extract_vertical_bars_t4__: allowed difference (in pixels)
+        between two bar distances
     :attr __p_determine_height2value_factor_t1__: used while searching for
         column of bar values (the scale) to calculate factor used to convert
         bar's height to real bar's value. This is used to ignore text regions
@@ -152,6 +158,9 @@ class SimpleBarChartParser(ParserPluginBase):
     :attr __p_get_title_t1__: maximal Y distance between text regions composing
         the title of bar chart"""
     __p_extract_vertical_bars_t1__ = 45
+    __p_extract_vertical_bars_t2__ = 2
+    __p_extract_vertical_bars_t3__ = 2
+    __p_extract_vertical_bars_t4__ = 2
     __p_determine_height2value_factor_t1__ = 10
     __p_get_argument_domain_t1__ = 30
     __p_get_argument_domain_t2__ = 0.3
@@ -179,6 +188,9 @@ class SimpleBarChartParser(ParserPluginBase):
         representing vertical bars of simple bar chart."""
         bars = []
         t1 = self.config('extract_vertical_bars_t1').asint()
+        t2 = self.config('extract_vertical_bars_t2').asint()
+        t3 = self.config('extract_vertical_bars_t3').asint()
+        t4 = self.config('extract_vertical_bars_t4').asint()
         # Sort rectangles by decreasing coordinate of rectanle bottom
         rect_by_bounds_sorted = sorted(
             self.rect_by_bounds.iterkeys(), key=lambda x: -x[3])
@@ -203,6 +215,27 @@ class SimpleBarChartParser(ParserPluginBase):
             self.text_barycenters.remove(label)
             # Notify that text region is in use
             text_used.add(self.text_by_barycenter[label])
+        # Sort bars by left property (ascending)
+        bars_sorted = sorted(bars, key=lambda x: x.bar.left)
+        # Keeps distances between bars (all values should be the same)
+        distances = []
+        # Validate bars
+        for i in xrange(len(bars_sorted)-1):
+            # Compare bottoms of two neighboring bars
+            if abs(bars_sorted[i].bar.bottom - bars_sorted[i+1].bar.bottom) > t2:
+                log.debug('failed on checking bar bottoms with t2=%s', t2)
+                return []
+            # Compare widths of two neighboring bars
+            if abs(bars_sorted[i].bar.width - bars_sorted[i+1].bar.width) > t3:
+                log.debug('failed on checking bar widths with t3=%s', t3)
+                return []
+            # Calculate distance between neighboring bars to be checked later
+            distances.append(bars_sorted[i+1].bar.left - bars_sorted[i].bar.right)
+        # Validate distances between neighboring bars
+        for i in xrange(len(distances)-1):
+            if abs(distances[i] - distances[i+1]) > t4:
+                log.debug('failed on checking bar distances with t4=%s', t4)
+                return []
         return bars
     
     @dump(_DumpYAxisLables)
@@ -349,7 +382,7 @@ class SimpleBarChartParser(ParserPluginBase):
         # Extract all vertical bars
         log.debug('searching for chart bars')
         bars = self.__extract_vertical_bars(text_used)
-        if not bars:
+        if len(bars) < 2:
             log.info('no bars found: image is not a simple bar chart image')
             return
         log.debug('done. Found total number of %d bars', len(bars))
