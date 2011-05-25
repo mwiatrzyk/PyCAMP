@@ -5,7 +5,7 @@ import camp.exc as exc
 from camp.util import dump
 from camp.config import Config
 from camp.filters import BaseFilter
-from camp.core import ImageChops
+from camp.core import ImageChops, Image
 from camp.core.containers import SegmentGroup, Text
 from camp.plugins.ocr import OCRPluginBase
 
@@ -35,9 +35,9 @@ def _text_recognition_dump(result, args=None, kwargs=None, dump_dir=None):
         os.path.join(dump_dir, 'difference.png'))
 
     # Dump remaining graphical segments
-    image3 = image.copy()
+    image3 = Image.create(image.mode, image.width, image.height, background=(255, 255, 255))
     for g in graphical:
-        g.display_border(image3, color=(0, 0, 255))
+        g.display(image3, color=g.color)
     image3.save(os.path.join(dump_dir, 'graphical.png'))
 
 
