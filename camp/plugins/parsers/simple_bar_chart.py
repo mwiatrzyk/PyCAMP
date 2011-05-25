@@ -170,7 +170,7 @@ class SimpleBarChartParser(ParserPluginBase):
     def __init__(self, *args, **kwargs):
         super(SimpleBarChartParser, self).__init__(*args, **kwargs)
         # Map of text.barycenter -> text
-        self.text_by_barycenter = dict([(t.barycenter, t) for t in self.text])
+        self.text_by_barycenter = dict([((t.barycenter, t.top), t) for t in self.text])
         # Set of text barycenters (performance gain)
         self.text_barycenters = set(self.text_by_barycenter.keys())
         # List of all rectangles
@@ -204,7 +204,7 @@ class SimpleBarChartParser(ParserPluginBase):
             # candidates are text regions whth horizontal centers lying just
             # below the rectangle (but not too far)
             label_candidates = filter(
-                lambda x: x[0]>k[0] and x[0]<k[2] and x[1]>k[3] and x[1]-k[3]<=t1,
+                lambda x: x[0][0]>k[0] and x[0][0]<k[2] and x[1]>k[3] and x[1]-k[3]<=t1,
                 self.text_barycenters)
             if not label_candidates:
                 continue
@@ -253,7 +253,7 @@ class SimpleBarChartParser(ParserPluginBase):
         leftmost_bar = min(bars, key=lambda x: x.left)
         left = leftmost_bar.left
         bottom = leftmost_bar.bottom
-        leftmost_text = filter(lambda x: x[0]<left and x[1]<bottom+t1, self.text_barycenters)
+        leftmost_text = filter(lambda x: x[0][0]<left and x[0][1]<bottom+t1, self.text_barycenters)
         # If text area could not be found, return neutral factor (1)
         if not leftmost_text:
             return 1.0
@@ -262,11 +262,11 @@ class SimpleBarChartParser(ParserPluginBase):
         startpoint = int(sum([b.bar.bottom for b in bars]) / float(len(bars)))
         # Find in previously created `leftmost_text` sequence the region that
         # is closest to leftmost bar
-        t = max(leftmost_text, key=lambda x: x[0]+x[1])
+        t = max(leftmost_text, key=lambda x: x[0][0]+x[0][1])
         # Find all text areas lying in vertical column formed by `t`. Sort it
         # in decreasing order of `bottom` position as well
         remaining = sorted(
-            filter(lambda x: t[0]>x.left and t[0]<x.right and x.top<t[1], self.text),
+            filter(lambda x: t[0][0]>x.left and t[0][0]<x.right and x.top<t[0][1], self.text),
             key=lambda x: -x.bottom)
         # Try to convert text to float
         for r in remaining:
