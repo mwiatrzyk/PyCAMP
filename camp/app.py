@@ -45,7 +45,9 @@ class Application(object):
     def run(self):
         """Execute application and return exit code."""
         # Load source image
-        source = Image.load(self.infile).convert('RGB')
+        source = Image.load(self.infile)
+        if source.mode != 'RGB':
+            source = source.convert('RGB')
         
         # Create filter stack
         f = None
