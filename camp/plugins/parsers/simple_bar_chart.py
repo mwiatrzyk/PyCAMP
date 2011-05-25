@@ -191,6 +191,10 @@ class SimpleBarChartParser(ParserPluginBase):
         t2 = self.config('extract_vertical_bars_t2').asint()
         t3 = self.config('extract_vertical_bars_t3').asint()
         t4 = self.config('extract_vertical_bars_t4').asint()
+        # Check if there are any rectangles in the image
+        if not self.rectangles:
+            log.debug('no rectangles found')
+            return []
         # Sort rectangles by decreasing coordinate of rectanle bottom
         rect_by_bounds_sorted = sorted(
             self.rect_by_bounds.iterkeys(), key=lambda x: -x[3])
