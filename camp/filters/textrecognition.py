@@ -12,9 +12,11 @@ from camp.plugins.ocr import OCRPluginBase
 log = logging.getLogger(__name__)
 
 
-def _extract_text_dump(result, args=None, kwargs=None, dump_dir=None):
+def _text_recognition_dump(result, args=None, kwargs=None, dump_dir=None):
     image = args[1]
-    text, text_candidates = result
+    storage = kwargs['storage']['TextRecognitor']
+    text, text_candidates = storage['text'], storage['text_candidates']
+    graphical = storage['graphical']
 
     # Dump text region candidates
     image1 = image.copy()
@@ -31,6 +33,12 @@ def _extract_text_dump(result, args=None, kwargs=None, dump_dir=None):
     # Dump difference text candidates and recognized text regions
     ImageChops.difference(image1, image2).save(
         os.path.join(dump_dir, 'difference.png'))
+
+    # Dump remaining graphical segments
+    image3 = image.copy()
+    for g in graphical:
+        g.display_border(image3, color=(0, 0, 255))
+    image3.save(os.path.join(dump_dir, 'graphical.png'))
 
 
 class TextRecognitor(BaseFilter):
@@ -57,7 +65,6 @@ class TextRecognitor(BaseFilter):
     __f_max_vertical_height__ = 30
     __f_min_vfactor__ = 2.5
     
-    @dump(_extract_text_dump)
     def extract_text(self, image, segments_):
         """Find and return group of segments composing textual information."""
         max_width = self.config('max_width').asint()
@@ -213,7 +220,8 @@ class TextRecognitor(BaseFilter):
                 result.add(c)
 
         return result, candidates
-
+    
+    @dump(_text_recognition_dump)
     def process(self, image, storage=None):
         log.info('splitting segments into set of textual and non-textual segments')
         try:
