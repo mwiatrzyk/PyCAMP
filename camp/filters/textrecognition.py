@@ -13,6 +13,7 @@ log = logging.getLogger(__name__)
 
 
 def _text_recognition_dump(result, args=None, kwargs=None, dump_dir=None):
+    cbounds = Config.instance().config('argv:cbounds', (0, 0, 255)).value
     image = args[1]
     storage = kwargs['storage']['TextRecognitor']
     text, text_candidates = storage['text'], storage['text_candidates']
@@ -21,13 +22,13 @@ def _text_recognition_dump(result, args=None, kwargs=None, dump_dir=None):
     # Dump text region candidates
     image1 = image.copy()
     for t in text_candidates:
-        t.display_bounds(image1, color=(0, 0, 255))
+        t.display_bounds(image1, color=cbounds)
     image1.save(os.path.join(dump_dir, 'candidates.png'))
 
     # Dump recognized text regions
     image2 = image.copy()
     for t in text:
-        t.display_bounds(image2, color=(0, 0, 255))
+        t.display_bounds(image2, color=cbounds)
     image2.save(os.path.join(dump_dir, 'recognized.png'))
 
     # Dump difference text candidates and recognized text regions

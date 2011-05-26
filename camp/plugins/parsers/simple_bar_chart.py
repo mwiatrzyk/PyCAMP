@@ -5,6 +5,7 @@ from lxml import etree
 
 from camp.util import asfloat, asunicode, dump, BaseDumper
 from camp.core import Image
+from camp.config import Config
 from camp.core.containers import SegmentGroup
 from camp.plugins.parsers import ParserPluginBase, ParsingResultBase
 from camp.plugins.recognitors.rectangle import RectangleGenre
@@ -13,15 +14,20 @@ log = logging.getLogger(__name__)
 
 
 def _dump_vertical_bars(result, args=None, kwargs=None, dump_dir=None):
+    cbounds = Config.instance().config('argv:cbounds', (0, 0, 255)).value
     image = args[0].image.copy()
-    labels = SegmentGroup(None)
-    bars = SegmentGroup(None)
     for b in result:
-        labels.segments.add(b.label)
-        bars.segments.add(b.bar)
-    labels.display_bounds(image, color=(0, 0, 255))
-    bars.display_bounds(image, color=(0, 0, 255))
+        b.display_bounds(image, color=cbounds)
     image.save(os.path.join(dump_dir, 'bars-with-labels.png'))
+
+
+def _dump_vertical_bars_candidates(result, args=None, kwargs=None, dump_dir=None):
+    cbounds = Config.instance().config('argv:cbounds', (0, 0, 255)).value
+    image = args[0].copy()
+    for b in result:
+        b.bar.display_bounds(image, color=cbounds)
+        b.label.display_bounds(image, color=cbounds)
+    image.save(os.path.join(dump_dir, 'bars-candidates.png'))
 
 
 class _TextUsedDumper(BaseDumper):
@@ -36,43 +42,47 @@ class _TextUsedDumper(BaseDumper):
 class _DumpYAxisLables(_TextUsedDumper):
 
     def __call__(self, result, args=None, kwargs=None, dump_dir=None):
+        cbounds = Config.instance().config('argv:cbounds', (0, 0, 255)).value
         image = args[0].image.copy()
         labels = SegmentGroup(None)
         labels.segments.update(self.text_used)
-        labels.display_bounds(image, color=(0, 0, 255))
+        labels.display_bounds(image, color=cbounds)
         image.save(os.path.join(dump_dir, 'y-axis-labels.png'))
 
 
 class _DumpArgumentDomain(_TextUsedDumper):
     
     def __call__(self, result, args=None, kwargs=None, dump_dir=None):
+        cbounds = Config.instance().config('argv:cbounds', (0, 0, 255)).value
         image = args[0].image.copy()
         domain = SegmentGroup(None)
         domain.segments.update(self.text_used)
         if domain.segments:
-            domain.display_bounds(image, color=(0, 0, 255))
+            domain.display_bounds(image, color=cbounds)
             image.save(os.path.join(dump_dir, 'argument-domain.png'))
 
 
 class _DumpValueDomain(_TextUsedDumper):
     
     def __call__(self, result, args=None, kwargs=None, dump_dir=None):
+        cbounds = Config.instance().config('argv:cbounds', (0, 0, 255)).value
         image = args[0].image.copy()
         domain = SegmentGroup(None)
         domain.segments.update(self.text_used)
         if domain.segments:
-            domain.display_bounds(image, color=(0, 0, 255))
+            domain.display_bounds(image, color=cbounds)
             image.save(os.path.join(dump_dir, 'value-domain.png'))
 
 
 class _DumpTitle(_TextUsedDumper):
     
     def __call__(self, result, args=None, kwargs=None, dump_dir=None):
+        cbounds = Config.instance().config('argv:cbounds', (0, 0, 255)).value
         image = args[0].image.copy()
         domain = SegmentGroup(None)
         domain.segments.update(self.text_used)
         if domain.segments:
-            domain.display_bounds(image, color=(0, 0, 255))
+            domain.display_bounds(image, color=cbounds)
             image.save(os.path.join(dump_dir, 'title.png'))
 
 
@@ -219,7 +229,10 @@ class SimpleBarChartParser(ParserPluginBase):
             self.text_barycenters.remove(label)
             # Notify that text region is in use
             text_used.add(self.text_by_barycenter[label])
+        # Dump candidates
+        dump(_dump_vertical_bars_candidates)(lambda x: bars)(self.image)
         # Sort bars by left property (ascending)
+        log.debug('number of bar candidates: %d', len(bars))
         bars_sorted = sorted(bars, key=lambda x: x.bar.left)
         # Keeps distances between bars (all values should be the same)
         distances = []
@@ -281,9 +294,7 @@ class SimpleBarChartParser(ParserPluginBase):
                 if not tmp:
                     continue
                 # Add parsed value and its pixel height to list of results
-                scale.append((
-                    asfloat(r.genre.text),
-                    abs(r.barycenter[1]-startpoint)))
+                scale.append((tmp, abs(r.barycenter[1]-startpoint)))
                 # Notify that text region is in use
                 text_used.add(r)
             except ValueError, e:

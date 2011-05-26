@@ -15,6 +15,18 @@ from camp.filters.parsing import Parser
 log = logging.getLogger(__name__)
 
 
+def _decode_color(color):
+    """Decode command line color to tuple that can be used in PIL's
+    functions."""
+    if not color:
+        return
+    try:
+        return tuple([int(ch) for ch in color.split('.')])
+    except ValueError:
+        log.warning("expected color format is 'r.g.b', where r, g and b are "
+            "integer numbers")
+
+
 class Application(object):
     """The bootstrap class."""
     
@@ -37,7 +49,8 @@ class Application(object):
                 'infile': infile,  # Input file path
                 'outfile': outfile,  # Output file path
                 'timeit': options.timeit,  # Enable or disable `timeit` decorator
-                'dump': options.dump  # Enable or disable `dump` decorator
+                'dump': options.dump,  # Enable or disable `dump` decorator
+                'cbounds': _decode_color(options.cbounds)
             }
             Config.instance(config=options.config, argv=argv)
 

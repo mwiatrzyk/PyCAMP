@@ -23,6 +23,9 @@ parser.add_option('-d', '--dump', dest='dump',
     help='enable partial results dumping', default=False, action='store_true')
 parser.add_option('-v', '--verbose', dest='verbose',
     help='enable verbose mode', default=False, action='store_true')
+parser.add_option('', '--cbounds', dest='cbounds',
+    help='color to be used for segment bounds when creating dumps '
+    'of partial results')
 
 if len(sys.argv) == 1:
     parser.print_help()
