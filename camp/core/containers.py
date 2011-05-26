@@ -162,6 +162,13 @@ class Segment(object):
         y = sum([a[1] for a in self.area])
         l = float(len(self.area))
         return x / l, y / l
+    
+    @property
+    def center(self):
+        """Segment's central point coordinates. These are coordinates of
+        central point of segment's bounds."""
+        l, r, t, b = self.left, self.right, self.top, self.bottom
+        return l + (r - l + 1) / 2.0, t + (b - t + 1) / 2.0
 
     @property
     def coverage(self):
